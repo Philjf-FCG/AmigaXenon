@@ -8,6 +8,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SceneComponent.h"
+#include "EngineUtils.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/RunnableThread.h"
@@ -28,6 +29,7 @@
 #include "RetroScreenEmulatorWorker.h"
 #include "RetroScreenInputBridge.h"
 #include "RetroScreenLibretroCore.h"
+#include "ArcadeCabinetActor.h"
 #include "RetroScreenPauseMenuWidget.h"
 #include "RetroScreenTextureBridge.h"
 #include "RetroScreenVideoBridge.h"
@@ -176,6 +178,12 @@ void ARetroScreenManager::BeginPlay()
         {
             PauseMenuWidgetClass = BlueprintPauseMenuClass;
         }
+    }
+
+    // Auto-spawn arcade cabinet actor if enabled
+    if (bAutoSpawnArcadeCabinet)
+    {
+        FindOrSpawnArcadeCabinet();
     }
 
     LoadRuntimeConfig();
@@ -2428,6 +2436,83 @@ void ARetroScreenManager::HidePauseMenuWidget()
     }
 
     PauseMenuWidgetInstance->RemoveFromParent();
+}
+
+void ARetroScreenManager::FindOrSpawnArcadeCabinet()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    // Try to find existing cabinet actor
+    for (TActorIterator<AArcadeCabinetActor> It(World); It; ++It)
+    {
+        AArcadeCabinetActor* Cabinet = *It;
+        if (Cabinet != nullptr)
+        {
+            ArcadeCabinetActorInstance = Cabinet;
+            UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Using existing arcade cabinet: %s"), *Cabinet->GetName());
+            return;
+        }
+    }
+
+    // Spawn new cabinet actor if none exists
+    if (!ArcadeCabinetActorClass)
+    {
+        ArcadeCabinetActorClass = AArcadeCabinetActor::StaticClass();
+    }
+    
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    if (PlayerController == nullptr)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Cannot spawn arcade cabinet: no player controller"));
+        return;
+    }
+
+    // Spawn at default location
+    FVector SpawnLocation = FVector(0.0f, 0.0f, 100.0f);
+    FRotator SpawnRotation = FRotator::ZeroRotator;
+
+    ArcadeCabinetActorInstance = World->SpawnActor<AArcadeCabinetActor>(
+        ArcadeCabinetActorClass,
+        SpawnLocation,
+        SpawnRotation
+    );
+
+    if (ArcadeCabinetActorInstance != nullptr)
+    {
+        // Configure player controller to view the cabinet
+        if (APawn* Pawn = PlayerController->GetPawn())
+        {
+            PlayerController->UnPossess();
+        }
+
+        PlayerController->bAutoManageActiveCameraTarget = false;
+        PlayerController->SetViewTarget(ArcadeCabinetActorInstance);
+
+        // Hide all other actors to show only the cabinet
+        PlayerController->HiddenActors.Reset();
+        for (TActorIterator<AActor> It(World); It; ++It)
+        {
+            AActor* Actor = *It;
+            if (Actor != nullptr && Actor != ArcadeCabinetActorInstance && Actor != this)
+            {
+                PlayerController->HiddenActors.AddUnique(Actor);
+            }
+        }
+
+        FInputModeGameOnly InputMode;
+        PlayerController->SetInputMode(InputMode);
+        PlayerController->bShowMouseCursor = false;
+
+        UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Spawned arcade cabinet at %s"), *SpawnLocation.ToString());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Failed to spawn arcade cabinet actor"));
+    }
 }
 
 void ARetroScreenManager::SetRuntimeCoreOption(const FString& Key, const FString& Value)

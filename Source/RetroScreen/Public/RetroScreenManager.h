@@ -25,6 +25,7 @@ class UInputAction;
 class UInputComponent;
 class UInputMappingContext;
 class URetroScreenPauseMenuWidget;
+class AArcadeCabinetActor;
 struct FInputActionValue;
 struct FTimerHandle;
 
@@ -416,6 +417,15 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<URetroScreenPauseMenuWidget> PauseMenuWidgetInstance;
 
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Cabinet")
+    TSubclassOf<AArcadeCabinetActor> ArcadeCabinetActorClass;
+
+    UPROPERTY(Transient)
+    TObjectPtr<AArcadeCabinetActor> ArcadeCabinetActorInstance;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Cabinet")
+    bool bAutoSpawnArcadeCabinet;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Metrics")
     bool bLogRuntimeMetricsToOutput;
 
@@ -532,6 +542,18 @@ private:
     void HandleActionMoveAxisY(const FInputActionValue& Value);
     void ShowPauseMenuWidget();
     void HidePauseMenuWidget();
+
+    /**
+     * Find or spawn arcade cabinet actor in the current world
+     */
+    void FindOrSpawnArcadeCabinet();
+
+    /**
+     * Get the arcade cabinet actor instance (nullptr if not spawned)
+     */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Cabinet")
+    AArcadeCabinetActor* GetArcadeCabinet() const { return ArcadeCabinetActorInstance; }
+
     void SetRuntimeCoreOption(const FString& Key, const FString& Value);
     bool InitializeUnrealLibretroCore();
     void ShutdownUnrealLibretroCore();
