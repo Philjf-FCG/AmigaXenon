@@ -1,0 +1,125 @@
+
+RETROSCREEN
+Unreal Engine Amiga Arcade Emulator
+ART & ENVIRONMENT DESIGN DOCUMENT
+Version 1.0 – May 2026
+
+Prepared by XTR – Xtended Realities
+Classification: Confidential
+
+
+
+
+Art Direction
+Visual Tone
+The visual direction draws from late-1980s and early-1990s arcade culture. The environment should feel lived-in and slightly worn — not pristine, but not derelict. Think a well-loved local arcade or a collector’s basement setup. Warm incandescent lighting, wood panelling, worn carpet or concrete floor, and the characteristic glow of CRT screens in a dim room.
+The aesthetic sits between photorealism and stylised warmth. Materials should be physically plausible (PBR) but the environment design leans into atmosphere over architectural accuracy. Lumen global illumination is ideal here, as the CRT screen’s emissive output naturally lights the surrounding surfaces.
+Colour Palette
+Dominant: Deep blues, warm ambers, muted greens (carpet/felt).
+Accent: Neon signage (magenta, cyan), CRT glow (warm white shifting with game content).
+Surfaces: Dark wood grain, brushed metal, faded vinyl decals.
+Arcade Cabinet Design
+Cabinet Specifications
+The cabinet model is based on a generic upright arcade form factor, not modelled on any specific trademarked cabinet design. It should be immediately recognisable as an arcade machine but original in its details.
+Property
+Specification
+Height
+~1.85m (6ft) – standard upright proportion
+Width
+~0.65m (26in)
+Depth
+~0.85m (33in)
+Screen Area
+19–21 inch diagonal, 4:3 aspect ratio, recessed into bezel
+Control Panel
+Angled surface with joystick + 3 buttons (decorative only in v1.0)
+Construction Material
+MDF/particle board with laminate finish and printed side art
+Coin Door
+Metal coin door with chrome surround (non-functional, decorative)
+Mesh & UV Layout
+The cabinet mesh should be a single Static Mesh with clearly separated material slots for: body panels (wood/laminate), screen bezel (black plastic), screen surface (receives dynamic emulator texture), control panel (metal/plastic), side art panels (for decal textures), coin door (metal), and marquee header (backlit translucent panel).
+The screen surface must be a separate material slot with its own clean UV island occupying as much of UV space as possible for maximum texture resolution. This surface receives the dynamic texture from the emulator. Its UVs should map 1:1 to the emulator’s output aspect ratio (4:3).
+Screen Surface Geometry
+The screen is a slightly recessed quad within the bezel. For the CRT curvature effect, there are two approaches:
+Material-based curvature (recommended): The screen mesh is flat, and barrel distortion is applied in the material shader. This is simpler and more controllable.
+Geometry-based curvature: The screen mesh has a slight convex curve baked in. This interacts better with reflections but requires careful UV mapping to avoid distortion of the emulator output.
+The recommended approach for v1.0 is material-based curvature on a flat quad.
+LODs and Optimisation
+The cabinet is a hero prop and will typically be viewed from close range. Two LOD levels are recommended: LOD0 at full detail (approx. 8,000–12,000 triangles) for close interaction, and LOD1 at reduced detail (approx. 2,000–4,000 triangles) for distant views if multiple cabinets are ever placed in a scene.
+CRT Screen Material
+Material Overview
+The CRT screen material is the visual centrepiece of the project. It transforms the clean pixel output of the Amiga emulator into a convincing CRT display. The material is a Surface material applied to the screen mesh, using the Unlit or Emissive shading model to self-illuminate.
+Material Parameters
+Parameter
+Type
+Default
+Description
+ScreenTexture
+Texture2D
+(dynamic)
+The emulator output texture.
+ScanlineIntensity
+Float
+0.3
+Strength of scanline darkening (0=off, 1=full).
+ScanlineScale
+Float
+1.0
+Scanline density relative to pixel rows.
+CurvatureAmount
+Float
+0.02
+Barrel distortion strength.
+PhosphorBloom
+Float
+0.15
+Glow bleed around bright pixels.
+VignetteStrength
+Float
+0.4
+Edge darkening.
+Brightness
+Float
+1.5
+Overall screen brightness multiplier.
+ChromaticAberration
+Float
+0.005
+RGB channel offset at edges.
+FlickerSpeed
+Float
+0.0
+Simulated refresh flicker (0=off).
+Environment Design
+Default Scene: The Arcade Room
+The default environment is a single room approximately 8m × 6m, designed to evoke a small independent arcade or a collector’s den. The room contains:
+The Amiga arcade cabinet as the hero prop, positioned centrally against one wall.
+Ambient props: additional non-interactive cabinet shells, a low table with magazines, a stool, wall posters, a neon “OPEN” sign.
+Flooring: dark patterned carpet or polished concrete.
+Walls: wood panelling on the lower half, painted plaster or brick above.
+Ceiling: exposed ductwork or simple tile ceiling with recessed lighting.
+Lighting Design
+Lighting is critical to the atmosphere. The primary light sources are:
+The CRT screen itself (emissive material + supplementary rect light) – this is the dominant light source in the player’s view when interacting with the cabinet.
+A warm overhead spot or pendant light providing soft ambient fill.
+Neon accent lighting (signs, strip lighting) providing colour contrast.
+A subtle exterior light source (window or doorway) to ground the space.
+Lumen GI is recommended for authentic indirect light bounce from the CRT onto surrounding surfaces. The screen’s colour should visibly tint the cabinet bezel and nearby wall.
+Audio Environment
+The environment has its own ambient audio layer separate from the emulator output:
+Room tone: Gentle hum of electronics, distant muffled sounds.
+Mechanical ambience: Fan noise from cabinets, occasional fluorescent light buzz.
+The emulator audio is spatialised to the cabinet’s speaker location and attenuates with distance.
+When the player steps away from the cabinet, the game audio fades naturally with distance.
+UI & HUD
+Minimal UI Philosophy
+The project uses a minimalist UI approach. There is no persistent HUD. Interaction prompts appear as diegetic elements (e.g., a small text prompt floating near the cabinet: “Press E to play”). Settings and configuration are accessed via a pause menu. The emulator’s own output serves as the game UI — no additional overlay is placed on the screen during gameplay.
+Pause Menu
+Pressing Escape during emulator interaction opens a pause menu with the following options:
+Resume
+CRT Effect Settings (toggle/adjust shader parameters)
+Audio Volume
+Input Mapping
+Return to Room (disengage from cabinet)
+Quit to Desktop

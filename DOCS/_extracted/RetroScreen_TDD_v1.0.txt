@@ -1,0 +1,147 @@
+
+RETROSCREEN
+Unreal Engine Amiga Arcade Emulator
+TECHNICAL DESIGN DOCUMENT
+Version 1.0 – May 2026
+
+Prepared by XTR – Xtended Realities
+Classification: Confidential
+
+
+
+
+System Architecture Overview
+RetroScreen is composed of four primary subsystems that communicate through well-defined interfaces. The Emulator Core runs headlessly on a dedicated background thread, producing video frames and audio samples. The Rendering Bridge consumes video frames and writes them into an Unreal Engine dynamic texture. The Audio Bridge pulls audio samples from a lock-free ring buffer and feeds them to Unreal’s audio submix system. The Input Bridge captures player input events and translates them into emulator-native input commands.
+All subsystems are orchestrated by a central manager actor (ARetroScreenManager) which owns the emulator lifecycle, handles initialisation and teardown, and exposes configuration to Blueprint and the editor.
+High-Level Component Diagram
+The architecture follows a producer-consumer pattern. The emulator core is the producer of both video frames and audio samples. Unreal Engine is the consumer. The two sides are decoupled by thread-safe buffers so that the emulator can run at its native refresh rate independently of Unreal’s frame rate.
+Player Input → UE Input System → Input Bridge → Emulator Core
+Emulator Core → Video Frame Buffer (double-buffered) → Dynamic Texture → Screen Material → Arcade Cabinet Mesh
+Emulator Core → Audio Ring Buffer → UE Audio Submix → Spatial Audio Source on Cabinet
+Emulator Core Integration
+Core Selection
+The recommended approach is to integrate a libretro-compatible Amiga emulator core. The libretro API provides a standardised interface for emulator cores, covering video output, audio output, input, and save states. This abstraction means the project can theoretically swap in different cores or even different platforms without rewriting the integration layer.
+The primary candidate core is PUAE (Portable Universal Amiga Emulator), available as a libretro core. It supports Amiga 500, 600, 1200, and CD32 emulation with high compatibility. An alternative is the FS-UAE core, which offers excellent accuracy but may have higher CPU overhead.
+libretro API Integration
+The libretro API operates via a set of C callbacks that the frontend (our Unreal Engine integration layer) must implement. The core calls these callbacks to output video, audio, and poll input. The key callbacks are:
+retro_set_video_refresh: Called each frame with a pointer to the framebuffer, width, height, and pitch.
+retro_set_audio_sample_batch: Called with interleaved stereo audio samples at the core’s native sample rate.
+retro_set_input_poll / retro_set_input_state: Called to poll the current state of all input devices.
+retro_set_environment: Used by the core to query capabilities, set pixel format, and request system information.
+Core Loading & Lifecycle
+The libretro core is compiled as a dynamic library (.dll on Windows, .so on Linux) and loaded at runtime via platform-specific dynamic loading (LoadLibrary/dlopen). This avoids any compile-time dependency on the core and allows users to supply their own core builds. The lifecycle is:
+Load the core DLL and resolve all retro_* function pointers.
+Call retro_set_environment, retro_set_video_refresh, retro_set_audio_sample_batch, retro_set_input_poll, retro_set_input_state to register callbacks.
+Call retro_init() to initialise the core.
+Load the game ROM/ADF via retro_load_game() with the file path.
+Enter the run loop: call retro_run() once per emulated frame on the emulator thread.
+On shutdown: retro_unload_game(), retro_deinit(), unload DLL.
+Threading Model
+The emulator core runs on a dedicated worker thread managed by FRunnable/FRunnableThread. This thread runs a tight loop calling retro_run() at the target frame rate (50Hz for PAL, 60Hz for NTSC). A high-resolution timer controls frame pacing. The video and audio callbacks write to thread-safe buffers that the game thread and audio thread consume independently.
+Critical consideration: libretro cores are generally not thread-safe for API calls. All retro_* calls must occur on the emulator thread. Input state is written to a shared atomic/lock-free structure by the game thread and read by the emulator thread during retro_input_state callbacks.
+Video Rendering Pipeline
+Framebuffer Capture
+When the emulator core calls retro_set_video_refresh, the callback receives a pointer to the current frame’s pixel data. Typical Amiga output is 320×256 (PAL lo-res) or 640×512 (PAL hi-res) in XRGB8888 or RGB565 format. The callback copies this data into a staging buffer using a double-buffer scheme: one buffer is being written by the emulator, the other is being read by the render thread.
+Dynamic Texture Update
+On the game thread (or render thread via enqueued command), the staging buffer contents are uploaded to a UTexture2DDynamic. The texture is created at initialisation with the emulator’s output resolution and PF_B8G8R8A8 pixel format. Each frame, UpdateTextureRegions() is called to upload the latest completed buffer. The texture is marked as volatile to hint to the renderer that it changes every frame.
+Screen Material
+The arcade cabinet’s screen surface uses a custom Material that samples the dynamic texture and applies a CRT post-process effect. The material graph includes:
+Base colour sampled from the dynamic texture with nearest-neighbour filtering to preserve pixel art sharpness.
+Scanline overlay: A repeating horizontal darkening pattern simulating CRT scanlines, modulated by screen UV.
+Curvature distortion: A subtle barrel distortion applied to UVs to simulate CRT screen curvature.
+Phosphor glow: A slight bloom/emissive bleed around bright pixels.
+Vignette: Darkening at screen edges.
+Colour fringing: Optional subtle chromatic aberration at extreme screen edges.
+All CRT effect parameters are exposed as Material Instance Dynamic parameters so they can be tweaked at runtime or disabled entirely for a clean pixel look.
+Screen Emissive Lighting
+The screen material uses an emissive output so that it casts light into the 3D scene, creating the characteristic glow of a CRT monitor illuminating the surrounding cabinet and floor. A rect light or point light parented to the screen mesh can supplement this with dynamic colour sampled from the average screen luminance.
+Audio Pipeline
+Audio Capture from Emulator
+The emulator core produces interleaved stereo PCM audio at its native sample rate (typically 44100Hz or 48000Hz). The retro_set_audio_sample_batch callback writes incoming samples into a lock-free single-producer, single-consumer ring buffer (SPSC). The buffer is sized to hold approximately 100ms of audio to absorb timing jitter between the emulator thread and the audio render thread.
+Unreal Engine Audio Integration
+Audio is consumed by a custom USoundWaveProcedural (or a Synth Component) that pulls samples from the ring buffer in its OnGenerateAudio callback. This callback runs on the audio render thread and must be lock-free. The procedural sound wave is attached to an Audio Component on the arcade cabinet actor, enabling spatial audio: the Amiga game audio appears to emanate from the cabinet’s speaker location.
+If the ring buffer underruns (emulator is behind), the audio callback outputs silence to avoid glitches. If the buffer is consistently too full (emulator running ahead), samples are dropped to maintain synchronisation. A dynamic resampling approach using a small moving average of buffer fill level can smoothly adjust playback rate by +/- 2% to keep the buffer at a target fill level without audible pitch change.
+Configuration System
+Runtime Configuration
+All user-configurable settings are stored in a simple INI file (RetroScreen.ini) in the project’s Saved directory. The ARetroScreenManager reads this on startup. Key settings include:
+Setting
+Type
+Description
+CorePath
+String
+Path to the libretro core DLL.
+RomPath
+String
+Path to the Amiga ADF/ROM file to load.
+KickstartPath
+String
+Path to the Amiga Kickstart ROM (required by PUAE).
+SystemRegion
+Enum
+PAL or NTSC. Determines refresh rate and resolution.
+CRTEffectEnabled
+Bool
+Toggle CRT shader on the screen material.
+AudioVolume
+Float
+Master volume for the emulated audio (0.0–1.0).
+InputProfile
+String
+Name of the input mapping profile to use.
+Amiga System Files
+The user must supply their own Kickstart ROM file. The system expects this at the path specified in KickstartPath. On first launch, if the file is missing, a clear message is displayed explaining what is needed and where to place it. No Kickstart ROM is bundled with the project.
+Performance Targets
+Metric
+Target
+Notes
+UE Render FPS
+60fps
+Independent of emulator frame rate.
+Emulator FPS
+50fps (PAL) / 60fps (NTSC)
+Must not drop below native rate.
+Input Latency
+< 16ms (1 frame)
+Measured keypress to emulator state change.
+Audio Latency
+< 50ms
+Perceived lag from emulator event to speaker.
+Texture Upload
+< 1ms per frame
+320×256 XRGB8888 upload.
+Total GPU Overhead
+< 5% additional
+Emulator rendering is a single textured quad.
+Technology Stack
+Component
+Technology
+Rationale
+Game Engine
+Unreal Engine 5.4+
+Industry standard, C++ access, dynamic texture support.
+Emulator API
+libretro
+Standardised core interface, multiple Amiga cores available.
+Amiga Core
+PUAE (libretro)
+High compatibility, active maintenance, reasonable CPU cost.
+Build System
+CMake (core) + UBT
+Core built separately, loaded as DLL.
+Audio Buffer
+Custom SPSC Ring Buffer
+Lock-free, minimal latency.
+Platform
+Windows 10/11 (primary)
+Linux secondary target.
+Build & Deployment
+Directory Structure
+The project follows a standard UE5 layout with additional directories for emulator resources:
+RetroScreen/Source/RetroScreen/ – C++ module source (manager, bridges, wrappers).
+RetroScreen/Content/Arcade/ – Cabinet mesh, materials, textures, blueprints.
+RetroScreen/Content/Environment/ – Level assets, lighting, props.
+RetroScreen/Binaries/Cores/ – Compiled libretro core DLLs (not version controlled; user-supplied).
+RetroScreen/Config/RetroScreen.ini – Runtime configuration.
+RetroScreen/EmulatorData/ – User-supplied ROMs and Kickstart files (gitignored).
+Build Configuration
+The Unreal module links against no emulator code at compile time. The libretro core is loaded purely at runtime via dynamic library loading. This means the UE project can be built and distributed without any emulator binary present. The emulator core is an optional runtime dependency.

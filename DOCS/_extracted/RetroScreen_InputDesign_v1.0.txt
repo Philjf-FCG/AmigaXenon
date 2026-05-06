@@ -1,0 +1,141 @@
+
+RETROSCREEN
+Unreal Engine Amiga Arcade Emulator
+INPUT SYSTEM DESIGN DOCUMENT
+Version 1.0 – May 2026
+
+Prepared by XTR – Xtended Realities
+Classification: Confidential
+
+
+
+
+Input System Overview
+The input system serves two distinct modes that must coexist without conflict: Environment Mode, where the player navigates the 3D world and interacts with objects, and Emulator Mode, where all relevant input is forwarded to the Amiga emulator core. Transitioning between these modes must be seamless and clearly communicated to the player.
+Input Modes
+Aspect
+Environment Mode
+Emulator Mode
+Active When
+Player is walking around the 3D scene.
+Player has engaged with the arcade cabinet.
+Keyboard
+WASD movement, E interact, Escape menu.
+All keys forwarded to emulator except Escape (pause/disengage).
+Mouse
+Camera look. Left click interact.
+Mouse movement/buttons forwarded as Amiga mouse.
+Gamepad
+Left stick move, A interact.
+D-pad/left stick = joystick, face buttons = fire/2nd button.
+Cursor
+Hidden (FPS-style mouselook).
+Hidden (mouse delta forwarded to emulator).
+Mode Transition
+Entering Emulator Mode
+The player approaches the arcade cabinet in Environment Mode. When within interaction range (approximately 1.5m), a prompt appears. Pressing the interact key (E on keyboard, A on gamepad) triggers the transition:
+The player controller’s movement and camera input are disabled.
+The camera smoothly interpolates to a fixed position directly in front of the screen (using a predefined camera anchor point on the cabinet actor).
+The Input Mode switches to Emulator Mode. All keyboard/mouse/gamepad input is now routed to the Input Bridge.
+If the emulator is not yet running, it starts. If it was already running (player stepped away previously), it resumes.
+The UE cursor is confined to the game window to prevent accidental alt-tabs during mouse-driven Amiga games.
+Exiting Emulator Mode
+Pressing Escape while in Emulator Mode opens the pause menu. Selecting “Return to Room” reverses the transition:
+Input routing reverts to Environment Mode.
+The camera interpolates back to the player controller’s position.
+Movement and mouselook are re-enabled.
+The emulator continues running in the background (the game remains visible on the cabinet screen).
+Keyboard Input Mapping
+Amiga Keyboard Layout
+The Amiga keyboard layout differs from modern PC keyboards in several respects. The Input Bridge must translate PC scancodes to Amiga keycodes. The mapping covers the full set of Amiga keys including special keys unique to the Amiga.
+Key Translation Table (Selected Keys)
+PC Key
+Amiga Key
+Amiga Code
+Notes
+A–Z
+A–Z
+0x20–0x39
+Direct mapping.
+0–9
+0–9
+0x0A–0x00
+Direct mapping.
+F1–F10
+F1–F10
+0x50–0x59
+Direct mapping.
+Arrow Keys
+Cursor Keys
+0x4C–0x4F
+Direct mapping.
+Left Alt
+Left Amiga
+0x66
+Common convention.
+Right Alt
+Right Amiga
+0x67
+Common convention.
+Home
+Help
+0x5F
+No direct PC equivalent.
+Right Ctrl
+Ctrl
+0x63
+Maps to Amiga Control.
+A complete mapping table for all 96 Amiga keycodes is maintained in the source code as a static lookup array. Users can override individual mappings via the configuration file.
+Mouse Input
+Mouse Passthrough
+In Emulator Mode, mouse movement deltas (not absolute positions) are forwarded to the emulator as Amiga mouse movement. The Amiga mouse is a relative-movement device, so this maps naturally. Mouse sensitivity can be scaled via a configuration parameter. Left mouse button maps to Amiga left mouse button (fire on port 0). Right mouse button maps to Amiga right mouse button.
+During Emulator Mode, the OS cursor is hidden and the mouse is confined to the application window using Unreal’s FSlateApplication cursor lock functionality. This prevents the cursor from leaving the window during play.
+Gamepad Input
+Default Gamepad Mapping
+Gamepad Input
+Amiga Equivalent
+Notes
+D-Pad / Left Stick
+Joystick (Port 1)
+4-directional with diagonal support.
+A / Cross
+Fire Button (Port 1)
+Primary fire.
+B / Circle
+2nd Button (Port 1)
+If game supports it (CD32 pad).
+X / Square
+Space Bar
+Common “start/action” in many Amiga games.
+Y / Triangle
+Return/Enter
+Menu confirm in many Amiga games.
+Start
+Pause Menu
+Opens the UE pause menu, not forwarded.
+LB / L1
+F1
+Commonly used for in-game function keys.
+RB / R1
+F2
+Commonly used for in-game function keys.
+Right Stick
+Mouse
+Optional: analogue mouse emulation.
+Analogue to Digital Conversion
+The Amiga joystick is a digital 4-direction + fire device. Analogue stick input is converted with a configurable deadzone (default 0.25) and a simple threshold: any axis value beyond the deadzone maps to the corresponding digital direction. Diagonal movement is supported (both axes active simultaneously). The right stick, when mapped to mouse emulation, retains its analogue range and is scaled by a sensitivity parameter.
+Input Bridge Architecture
+Implementation
+The Input Bridge is a C++ class (URetroScreenInputBridge) that sits between Unreal’s input system and the emulator core. It maintains the current state of all emulated input devices in a flat array of atomic integers, which the emulator thread reads during input polling callbacks. The bridge is stateless from the emulator’s perspective: it simply reflects current pressed/released state.
+Data Flow
+Keyboard: UE Enhanced Input Action fires → Input Bridge maps PC keycode to Amiga keycode → sets state in shared array.
+Mouse buttons: UE mouse event → Input Bridge sets Amiga mouse button state.
+Mouse movement: UE mouse delta → Input Bridge accumulates delta in atomic x/y accumulators → emulator reads and resets on poll.
+Gamepad: UE Enhanced Input Action fires → Input Bridge maps to Amiga joystick direction + buttons → sets state in shared array.
+Enhanced Input Integration
+The project uses Unreal Engine’s Enhanced Input system with two Input Mapping Contexts: IMC_Environment for world navigation and IMC_Emulator for emulator control. On mode transition, the active mapping context is swapped on the player controller. The IMC_Emulator context binds every relevant key to a generic “KeyPassthrough” action that includes the key identity as a parameter, which the Input Bridge processes.
+Input Configuration
+User Remapping
+Players can remap gamepad bindings via the pause menu. Keyboard mappings follow a fixed PC-to-Amiga translation and are not remappable in-game (the mapping is designed to feel natural). Custom keyboard overrides can be specified in the INI configuration file for advanced users. All remapping is persisted to the configuration file.
+Per-Game Profiles
+Different Amiga games may benefit from different gamepad mappings. The configuration system supports named input profiles that map gamepad buttons to different Amiga keys. Profiles are stored in the INI file and selected per-game. A “Default” profile covers the standard mapping described above. Users can create additional profiles for games that use unusual control schemes.

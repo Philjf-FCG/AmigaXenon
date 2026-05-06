@@ -1,0 +1,100 @@
+
+RETROSCREEN
+Unreal Engine Amiga Arcade Emulator
+PROJECT OVERVIEW & VISION DOCUMENT
+Version 1.0 – May 2026
+
+Prepared by XTR – Xtended Realities
+Classification: Confidential
+
+
+
+
+Document Information
+Project Name
+RetroScreen
+Document Type
+Project Overview & Vision
+Version
+1.0
+Date
+May 2026
+Author
+XTR – Xtended Realities
+Engine
+Unreal Engine 5.4+
+Target Platforms
+Windows (primary), Linux (secondary)
+
+Executive Summary
+RetroScreen is an Unreal Engine 5 project that places a fully functional Commodore Amiga emulator within an interactive 3D environment. The player encounters a detailed arcade cabinet rendered in real time, and the cabinet’s screen displays a running Amiga game. Input from the player’s keyboard, mouse, or gamepad is captured by Unreal Engine and forwarded directly to the emulator core, allowing the player to play the Amiga game as if it were running natively on their PC, but framed within an immersive 3D scene.
+The project serves as both a technical showcase and a nostalgic experience, demonstrating how classic computing platforms can be embedded within modern real-time 3D engines. It has applications as a standalone experience, a portfolio piece, a museum or exhibition installation, or as a framework that can be extended to support additional retro platforms.
+Project Vision
+Core Concept
+The player exists in a 3D environment containing an arcade cabinet. Walking up to the cabinet and interacting with it shifts focus to the screen, which is running a genuine Commodore Amiga game via an embedded emulator. All standard controls pass through seamlessly — the player simply plays the game. Stepping away from the cabinet returns the player to the 3D environment. The emulator runs headlessly in the background, rendering each frame to a texture that is applied to the cabinet’s screen surface.
+Design Pillars
+Authenticity: The Amiga game must run accurately, including sound, at full speed via a proven emulator core.
+Seamlessness: Input routing must feel invisible. The player should not be aware of the emulation layer during play.
+Immersion: The arcade cabinet, environment lighting, and audio should create a convincing retro-arcade atmosphere.
+Modularity: The system should be architected so that ROM files, emulator cores, and even the cabinet model can be swapped with minimal effort.
+Target Experience
+The target experience is straightforward: the player approaches an arcade cabinet in a moody, atmospheric environment — perhaps a dimly lit arcade hall, a basement, or a retro-futuristic space. They interact with the cabinet, and the Amiga game takes over. The CRT screen glows. Joystick and keyboard inputs feel responsive. Sound emanates from the cabinet’s speakers. Stepping back returns them to the 3D world. The game continues running on the cabinet screen in the background.
+Scope Definition
+In Scope
+A single 3D environment containing one arcade cabinet.
+Integration of a Commodore Amiga emulator core (libretro-compatible, such as PUAE or FS-UAE core).
+Real-time rendering of emulator output to an in-game screen texture.
+Full input passthrough: keyboard, mouse, and gamepad.
+Amiga audio output routed through Unreal Engine’s audio system.
+A CRT shader/post-process effect on the screen material for authenticity.
+A basic player controller for navigating the 3D environment and interacting with the cabinet.
+Support for loading different Amiga ROM/ADF files via configuration.
+Out of Scope (v1.0)
+Networking or multiplayer functionality.
+Multiple simultaneous arcade cabinets running different emulators.
+Console/VR build targets (future consideration).
+Emulator save-state UI within the 3D environment.
+Any game distribution — users must supply their own legally obtained ROM/ADF files.
+Legal & Licensing Considerations
+The project must not distribute any copyrighted Amiga software, Kickstart ROMs, or game files. The emulator core selected must have a licence compatible with the project’s intended distribution model. If using a libretro core, the core’s specific licence (typically GPL) must be reviewed. The project ships as an empty shell that the user configures with their own legally obtained files. A clear disclaimer will be presented at first launch.
+Success Criteria
+An Amiga game runs at full speed (50fps PAL / 60fps NTSC) within the Unreal Engine project on mid-range PC hardware.
+Input latency from keypress to emulator response is imperceptible (sub-frame).
+Audio is synchronised with video output.
+The CRT screen effect is visually convincing at typical viewing distance.
+The system can load a different ADF file by changing a single configuration value, with no recompilation required.
+Stakeholders & Roles
+Project Lead / Producer
+Phil (Head of Ops, XTR)
+Technical Lead
+TBD
+3D Artist / Environment
+TBD
+UE Blueprint / C++ Developer
+TBD
+QA / Playtesting
+TBD
+Risks & Mitigations
+Risk
+Severity
+Mitigation
+Emulator performance insufficient inside UE5
+High
+Profile early. Run emulator on a dedicated thread. Consider frame-skip if necessary.
+Input latency unacceptable
+Medium
+Bypass UE input system for emulator passthrough using raw OS-level input hooks.
+Audio desynchronisation
+Medium
+Use ring buffer with dynamic resampling. Match emulator audio clock to UE audio callback rate.
+Licensing conflict with emulator core
+Medium
+Audit core licence before integration. Prefer permissively licensed cores or isolate via process boundary.
+CRT shader too expensive
+Low
+Shader runs only on the small screen quad. Offer quality tiers in settings.
+Related Documents
+Technical Design Document (TDD) – RetroScreen_TDD_v1.0.docx
+Art & Environment Design Document – RetroScreen_ArtDesign_v1.0.docx
+Input System Design Document – RetroScreen_InputDesign_v1.0.docx
+Implementation Plan – RetroScreen_ImplementationPlan_v1.0.docx

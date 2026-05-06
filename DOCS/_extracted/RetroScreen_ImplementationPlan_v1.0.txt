@@ -1,0 +1,139 @@
+
+RETROSCREEN
+Unreal Engine Amiga Arcade Emulator
+IMPLEMENTATION PLAN
+Version 1.0 – May 2026
+
+Prepared by XTR – Xtended Realities
+Classification: Confidential
+
+
+
+
+Implementation Strategy
+The project is structured into five sequential phases, each producing a testable milestone. This approach ensures that the riskiest technical integration (emulator core running within UE5) is validated first, before investing in art, environment, and polish. Each phase has clear entry criteria, deliverables, and a definition of done.
+Phase 1: Emulator Core Proof of Concept
+Objective
+Validate that a libretro Amiga core can be loaded, initialised, and run within a standalone C++ harness, producing video frames and audio output. This phase is entirely outside Unreal Engine.
+Duration
+1–2 weeks.
+Tasks
+Set up a minimal C++ project that loads a libretro core DLL at runtime.
+Implement the required libretro frontend callbacks (environment, video, audio, input).
+Load and run a test ADF file with a Kickstart ROM.
+Capture video frames to a window (SDL2 or similar) to visually confirm emulation is working.
+Capture audio to the system audio device to confirm sound output.
+Measure CPU usage and frame timing.
+Definition of Done
+A standalone executable loads the PUAE core, runs an Amiga game, displays video, plays audio, and accepts keyboard input.
+Frame rate is stable at 50fps (PAL) with no frame drops on a mid-range CPU.
+Phase 2: Unreal Engine Integration
+Objective
+Port the emulator integration into an Unreal Engine 5 project. Achieve emulator video output rendered to an in-game quad with audio playing through UE’s audio system.
+Duration
+2–3 weeks.
+Tasks
+Create a new UE5 C++ project with the RetroScreen module.
+Implement ARetroScreenManager actor with emulator lifecycle management.
+Move emulator core loading and run loop to a dedicated FRunnableThread.
+Implement the Video Bridge: double-buffered framebuffer capture and UTexture2DDynamic upload.
+Create a basic unlit material that displays the dynamic texture on a plane.
+Implement the Audio Bridge: SPSC ring buffer feeding a USoundWaveProcedural.
+Test with a simple scene: a single plane displaying the emulator output.
+Profile and optimise texture upload and audio latency.
+Definition of Done
+An Amiga game is visible on an in-game plane with synchronised audio.
+The emulator runs on a background thread without impacting UE’s render frame rate.
+Audio latency is under 50ms.
+Phase 3: Input System & Interaction
+Objective
+Implement the full input pipeline and the player’s interaction flow for engaging with and disengaging from the arcade cabinet.
+Duration
+2 weeks.
+Tasks
+Implement URetroScreenInputBridge with keyboard, mouse, and gamepad mapping.
+Create Enhanced Input mapping contexts for Environment Mode and Emulator Mode.
+Implement mode transition logic: approach, interact, camera lerp to screen, input switch.
+Implement exit flow: Escape → pause menu → return to room.
+Implement mouse confinement and cursor management.
+Test with multiple Amiga games that use different input methods (keyboard-only, mouse-only, joystick-only).
+Implement gamepad mapping and analogue-to-digital conversion.
+Build the configuration INI reader for runtime settings.
+Definition of Done
+Player can walk to a cabinet, press interact, play an Amiga game with keyboard/mouse/gamepad, pause, and return to the room.
+Input latency is sub-frame.
+Switching between modes is smooth with no dropped or stuck inputs.
+Phase 4: Art, Environment & CRT Shader
+Objective
+Replace placeholder geometry with the final arcade cabinet model and build the environment scene. Implement the CRT screen material.
+Duration
+2–3 weeks.
+Tasks
+Model, UV, and texture the arcade cabinet asset (or source and adapt a licensed model).
+Set up material slots: body, bezel, screen, control panel, side art, coin door, marquee.
+Build the CRT screen material with scanlines, curvature, phosphor bloom, vignette, and chromatic aberration.
+Expose CRT material parameters as Material Instance Dynamic for runtime tweaking.
+Build the arcade room environment: walls, floor, ceiling, props, neon signs.
+Set up Lumen lighting with emissive CRT contribution.
+Add environmental audio: room tone, electronic hum, ambient sounds.
+Implement supplementary rect light on cabinet that tracks average screen colour.
+Definition of Done
+The scene looks and feels like a convincing arcade environment.
+The CRT effect is visually authentic and adjustable.
+The screen’s glow visibly illuminates surrounding geometry via Lumen.
+Phase 5: Polish, Configuration & Release Prep
+Objective
+Final polish pass, configuration UI, documentation, and packaging for distribution.
+Duration
+1–2 weeks.
+Tasks
+Build the in-game settings/pause menu UI (UMG).
+Implement first-launch flow: detect missing Kickstart ROM, display setup instructions.
+Add gamepad remapping UI.
+Test with a broad set of Amiga games to identify compatibility issues.
+Performance optimisation pass: GPU profiling, memory audit.
+Write end-user README with setup instructions, legal disclaimer, and troubleshooting.
+Package the project for distribution (cooked build, packaged with empty EmulatorData directory).
+Internal QA and playtesting.
+Definition of Done
+The project runs cleanly on Windows with no first-party content requiring licensing.
+A non-technical user can follow the README to set up their own ROM/Kickstart files and play.
+All configuration is accessible via UI or INI file.
+Timeline Summary
+#
+Phase
+Duration
+Key Deliverable
+1
+Emulator Core PoC
+1–2 weeks
+Standalone harness running Amiga game.
+2
+UE5 Integration
+2–3 weeks
+Emulator rendering to UE texture with audio.
+3
+Input System
+2 weeks
+Full input pipeline, mode switching.
+4
+Art & Environment
+2–3 weeks
+Final cabinet, CRT shader, lit scene.
+5
+Polish & Release
+1–2 weeks
+Packaged, documented, user-ready build.
+
+Total estimated duration: 8–12 weeks depending on team size and availability. Phases 1–3 are sequential (each depends on the prior). Phase 4 (art) can overlap with Phase 3 (input) if separate team members are assigned. Phase 5 follows all prior phases.
+Dependencies & Prerequisites
+Unreal Engine 5.4 or later installed and configured for C++ development.
+A compiled PUAE libretro core DLL for the target platform.
+A legally obtained Amiga Kickstart ROM file (v1.3 or v3.1 recommended).
+One or more Amiga game ADF files for testing.
+Familiarity with UE5 C++ module development, Enhanced Input, dynamic textures, and procedural audio.
+Open Questions
+Should the project support multiple libretro cores (e.g., Atari ST, DOS) in future, and if so, should the architecture account for this now?
+Is there appetite for a VR mode where the player is physically standing at the cabinet? This would significantly affect the interaction and camera system.
+Should save states be exposed in the UI, or is the emulator’s own save mechanism (via Amiga floppy emulation) sufficient?
+What is the target distribution model — open-source portfolio piece, or commercial product?
