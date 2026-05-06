@@ -6,3 +6,22 @@
 [2026-05-06 07:41:56] [INFO] label=sprint-1 take=1 dryRun=False :: No ready issues found.
 [2026-05-06 07:46:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
 [2026-05-06 07:46:55] [INFO] label=sprint-1 take=1 dryRun=False :: No ready issues found.
+[2026-05-06 07:51:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 07:51:55] [INFO] label=sprint-1 take=1 dryRun=False :: No ready issues found.
+[2026-05-06 07:56:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 07:56:54] [INFO] label=sprint-1 take=1 dryRun=False :: No ready issues found.
+[2026-05-06 08:01:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 08:01:55] [INFO] label=sprint-1 take=1 dryRun=False :: Found 4 ready issue(s); selected 1.
+[2026-05-06 08:01:57] [ERROR] label=sprint-1 take=1 dryRun=False :: Run failed: Error claiming AmigaXenon-5qx.1.5: issue already claimed by philj
+[2026-05-06 08:06:53] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 08:06:57] [INFO] label=sprint-1 take=1 dryRun=False :: Found 22 ready issue(s); selected 1.
+[2026-05-06 08:07:00] [ERROR] label=sprint-1 take=1 dryRun=False :: Run failed: Error claiming AmigaXenon-5qx.3.8: issue already claimed by ue-dev
+[2026-05-06 08:11:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 08:11:55] [INFO] label=sprint-1 take=1 dryRun=False :: Found 14 ready issue(s); selected 1.
+[2026-05-06 08:11:58] [ERROR] label=sprint-1 take=1 dryRun=False :: Run failed: Error claiming AmigaXenon-5qx.2.8: issue already claimed by ue-dev
+[2026-05-06 08:16:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 08:16:54] [INFO] label=sprint-1 take=1 dryRun=False :: Found 14 ready issue(s); selected 1.
+[2026-05-06 08:16:56] [ERROR] label=sprint-1 take=1 dryRun=False :: Run failed: Error claiming AmigaXenon-5qx.2.8: issue already claimed by ue-dev
+[2026-05-06 08:21:52] [INFO] label=sprint-1 take=1 dryRun=False :: Run started.
+[2026-05-06 08:21:54] [INFO] label=sprint-1 take=1 dryRun=False :: Found 14 ready issue(s); selected 1.
+[2026-05-06 08:21:56] [ERROR] label=sprint-1 take=1 dryRun=False :: Run failed: Error claiming AmigaXenon-5qx.2.8: issue already claimed by ue-dev
