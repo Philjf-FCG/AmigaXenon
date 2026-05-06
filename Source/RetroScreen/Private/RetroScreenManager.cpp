@@ -102,6 +102,8 @@ ARetroScreenManager::ARetroScreenManager()
     RuntimeMetricsCsvExportIntervalSeconds = 2.0f;
     RuntimeMetricsCsvPath = TEXT("Saved/RetroScreenMetrics.csv");
     bAutoUploadVideoFrame = true;
+    bDrainStandaloneAudioInTick = true;
+    StandaloneAudioDrainSamplesPerTick = 4096;
     MaxVideoUploadsPerSecond = 60.0f;
     bLogRuntimeQualityGateToOutput = false;
     RuntimeQualityGateLogIntervalSeconds = 2.0f;
@@ -133,6 +135,23 @@ void ARetroScreenManager::BeginPlay()
 void ARetroScreenManager::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+
+    if (!bUseUnrealLibretroCore && bDrainStandaloneAudioInTick && AudioBridge.IsValid())
+    {
+        const int32 AvailableSamples = AudioBridge->GetAvailableSamples();
+        const int32 SamplesToDrain = FMath::Min(
+            FMath::Max(0, StandaloneAudioDrainSamplesPerTick),
+            AvailableSamples
+        );
+
+        if (SamplesToDrain > 0)
+        {
+            TArray<float> DrainScratch;
+            DrainScratch.SetNumUninitialized(SamplesToDrain);
+            AudioBridge->PopInterleavedSamples(DrainScratch.GetData(), SamplesToDrain);
+            UpdateAudioMetrics();
+        }
+    }
 
     if (!bAutoUploadVideoFrame || !bEmulatorRunning || bUseUnrealLibretroCore)
     {
@@ -1112,6 +1131,9 @@ void ARetroScreenManager::LoadRuntimeConfig()
     ConfigFile.GetFloat(SectionName, TEXT("RuntimeMetricsCsvExportIntervalSeconds"), RuntimeMetricsCsvExportIntervalSeconds);
     ConfigFile.GetString(SectionName, TEXT("RuntimeMetricsCsvPath"), RuntimeMetricsCsvPath);
 
+    ConfigFile.GetBool(SectionName, TEXT("DrainStandaloneAudioInTick"), bDrainStandaloneAudioInTick);
+    ConfigFile.GetInt(SectionName, TEXT("StandaloneAudioDrainSamplesPerTick"), StandaloneAudioDrainSamplesPerTick);
+
     ConfigFile.GetBool(SectionName, TEXT("LogRuntimeQualityGate"), bLogRuntimeQualityGateToOutput);
     ConfigFile.GetFloat(SectionName, TEXT("RuntimeQualityGateLogIntervalSeconds"), RuntimeQualityGateLogIntervalSeconds);
 
@@ -1128,6 +1150,7 @@ void ARetroScreenManager::LoadRuntimeConfig()
     RuntimeAudioVolume = FMath::Clamp(RuntimeAudioVolume, 0.0f, 2.0f);
     DefaultJoypadPort = FMath::Max(0, DefaultJoypadPort);
     DefaultJoypadDeadzone = FMath::Clamp(DefaultJoypadDeadzone, 0, static_cast<int32>(MAX_int16));
+    StandaloneAudioDrainSamplesPerTick = FMath::Max(0, StandaloneAudioDrainSamplesPerTick);
 
     RuntimeCoreOptionsAnsi.Reset();
     if (!RuntimeRegion.TrimStartAndEnd().IsEmpty())

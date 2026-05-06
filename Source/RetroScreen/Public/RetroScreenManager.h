@@ -316,6 +316,12 @@ private:
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Video")
     bool bAutoUploadVideoFrame;
 
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Audio")
+    bool bDrainStandaloneAudioInTick;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Audio", meta = (ClampMin = "0"))
+    int32 StandaloneAudioDrainSamplesPerTick;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Video", meta = (ClampMin = "1.0"))
     float MaxVideoUploadsPerSecond;
 
