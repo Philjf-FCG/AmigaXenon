@@ -4,16 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "RetroScreenAudioBridge.h"
+#include "RetroScreenEmulatorWorker.h"
+#include "RetroScreenInputBridge.h"
+#include "RetroScreenLibretroCore.h"
+#include "RetroScreenTextureBridge.h"
+#include "RetroScreenVideoBridge.h"
 
 #include "RetroScreenManager.generated.h"
 
 class FRunnableThread;
-class FRetroScreenEmulatorWorker;
-class FRetroScreenVideoBridge;
-class FRetroScreenTextureBridge;
-class FRetroScreenAudioBridge;
-class FRetroScreenInputBridge;
-class FRetroScreenLibretroCore;
 class UTexture2D;
 class UTextureRenderTarget2D;
 class ULibretroCoreInstance;
@@ -155,6 +155,7 @@ class RETROSCREEN_API ARetroScreenManager : public AActor
 
 public:
     ARetroScreenManager();
+    virtual ~ARetroScreenManager() override;
 
     UFUNCTION(BlueprintCallable, Category = "RetroScreen")
     bool InitializeEmulator();

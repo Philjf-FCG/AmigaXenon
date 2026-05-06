@@ -5,3 +5,13 @@
 .beads-credential-key
 ./AMigaXenon/Saved/webcache_6613/Default/Network/Cookies
 Saved/
+Intermediate/
+
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+Build/
+.vs/
+*.sln
+*.xcworkspace

@@ -60,7 +60,7 @@ int16 FRetroScreenInputBridge::GetInputState(uint32 Port, uint32 Device, uint32 
 
 void FRetroScreenInputBridge::PollInput()
 {
-    PollCount.FetchAdd(1, EMemoryOrder::Relaxed);
+    ++PollCount;
 }
 
 uint64 FRetroScreenInputBridge::GetPollCount() const

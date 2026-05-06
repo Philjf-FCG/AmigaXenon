@@ -34,25 +34,28 @@ $lines.Add("# RetroScreen Harness Run Summary")
 $lines.Add("")
 $lines.Add(("Generated: {0}" -f (Get-Date -AsUTC).ToString("yyyy-MM-dd HH:mm:ss 'UTC'")))
 $lines.Add("")
-$lines.Add("| Title | Archetype | Status | VideoFrames | AudioFrames | InputPoll | EffectiveFPS |")
-$lines.Add("|-------|-----------|--------|-------------|-------------|-----------|--------------|")
+$lines.Add("| Title | Archetype | Status | VideoFrames | AudioFrames | InputPoll | EffectiveFPS | FrameP95ms | FrameP99ms | CPUAvg% |")
+$lines.Add("|-------|-----------|--------|-------------|-------------|-----------|--------------|------------|------------|---------|")
 
 foreach ($row in $rows) {
     if ($row.status -ne "ok" -or -not (Test-Path $row.output_json -PathType Leaf)) {
-        $lines.Add(("| {0} | {1} | {2} | - | - | - | - |" -f $row.title, $row.archetype, $row.status))
+        $lines.Add(("| {0} | {1} | {2} | - | - | - | - | - | - | - |" -f $row.title, $row.archetype, $row.status))
         continue
     }
 
     $json = Get-Content -Path $row.output_json -Raw | ConvertFrom-Json
     $lines.Add((
-        "| {0} | {1} | {2} | {3} | {4} | {5} | {6:N2} |" -f
+        "| {0} | {1} | {2} | {3} | {4} | {5} | {6:N2} | {7:N3} | {8:N3} | {9:N2} |" -f
         $row.title,
         $row.archetype,
         $row.status,
         $json.video_callback_frames,
         $json.audio_callback_frames,
         $json.input_poll_count,
-        [double]$json.effective_fps
+        [double]$json.effective_fps,
+        [double]$json.frame_time_p95_ms,
+        [double]$json.frame_time_p99_ms,
+        [double]$json.cpu_average_percent
     ))
 }
 

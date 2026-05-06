@@ -35,8 +35,75 @@ Set-Location $resolvedRoot
 
 $results = New-Object System.Collections.Generic.List[object]
 
-$uprojectPath = Join-Path $resolvedRoot "AMigaXenon/AMigaXenon.uproject"
-$results.Add((New-CheckResult -Name "UE project file present" -Passed (Test-Path $uprojectPath -PathType Leaf) -Details $uprojectPath))
+$unrealBuildToolCommand = Get-Command UnrealBuildTool -ErrorAction SilentlyContinue
+$unrealEditorCommand = Get-Command UnrealEditor -ErrorAction SilentlyContinue
+
+$candidateEngineRoots = @()
+$epicGamesRoots = @(
+    "C:\Program Files\Epic Games",
+    "D:\Epic Games"
+)
+
+foreach ($epicRoot in $epicGamesRoots) {
+    if (Test-Path $epicRoot) {
+        $candidateEngineRoots += Get-ChildItem -Path $epicRoot -Directory -Filter "UE_*" -ErrorAction SilentlyContinue
+    }
+}
+
+$selectedEngineRoot = $candidateEngineRoots |
+    Sort-Object -Property Name -Descending |
+    Select-Object -First 1
+
+$buildBatFromEngine = $null
+$editorFromEngine = $null
+if ($null -ne $selectedEngineRoot) {
+    $buildCandidate = Join-Path $selectedEngineRoot.FullName "Engine\Build\BatchFiles\Build.bat"
+    $editorCandidate = Join-Path $selectedEngineRoot.FullName "Engine\Binaries\Win64\UnrealEditor.exe"
+
+    if (Test-Path $buildCandidate -PathType Leaf) {
+        $buildBatFromEngine = $buildCandidate
+    }
+
+    if (Test-Path $editorCandidate -PathType Leaf) {
+        $editorFromEngine = $editorCandidate
+    }
+}
+
+$buildToolAvailable = ($null -ne $unrealBuildToolCommand) -or ($null -ne $buildBatFromEngine)
+$editorAvailable = ($null -ne $unrealEditorCommand) -or ($null -ne $editorFromEngine)
+
+$unrealBuildToolDetails = if ($null -ne $unrealBuildToolCommand) {
+    $unrealBuildToolCommand.Source
+}
+elseif ($null -ne $buildBatFromEngine) {
+    "Build.bat found at $buildBatFromEngine"
+}
+else {
+    "Not found in PATH or common engine locations"
+}
+
+$unrealEditorDetails = if ($null -ne $unrealEditorCommand) {
+    $unrealEditorCommand.Source
+}
+elseif ($null -ne $editorFromEngine) {
+    $editorFromEngine
+}
+else {
+    "Not found in PATH or common engine locations"
+}
+
+$results.Add((New-CheckResult -Name "UnrealBuildTool available" -Passed $buildToolAvailable -Details $unrealBuildToolDetails))
+$results.Add((New-CheckResult -Name "UnrealEditor available" -Passed $editorAvailable -Details $unrealEditorDetails))
+
+$uprojectFiles = @(Get-ChildItem -Path $resolvedRoot -File -Filter "*.uproject" -ErrorAction SilentlyContinue)
+$uprojectDetails = if ($uprojectFiles.Count -gt 0) {
+    ($uprojectFiles | ForEach-Object { $_.FullName }) -join "; "
+}
+else {
+    "Count=0"
+}
+
+$results.Add((New-CheckResult -Name "UE project file present" -Passed ($uprojectFiles.Count -gt 0) -Details $uprojectDetails))
 
 $targetFiles = @(Get-ChildItem -Path $resolvedRoot -Recurse -File -Filter "*Target.cs" -ErrorAction SilentlyContinue)
 $results.Add((New-CheckResult -Name "UE target files present" -Passed ($targetFiles.Count -gt 0) -Details ("Count={0}" -f $targetFiles.Count)))
@@ -65,7 +132,8 @@ $results.Add((New-CheckResult -Name "Kickstart checklist doc present" -Passed (T
 $catalogDoc = Join-Path $resolvedRoot "DOCS/RetroScreen_Harness_Catalog_template.csv"
 $results.Add((New-CheckResult -Name "Harness catalog template present" -Passed (Test-Path $catalogDoc -PathType Leaf) -Details $catalogDoc))
 
-$allPassed = ($results | Where-Object { -not $_.Passed }).Count -eq 0
+$failedCount = @($results | Where-Object { -not $_.Passed }).Count
+$allPassed = $failedCount -eq 0
 
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add(("Phase 0 readiness report - {0}" -f (Get-Date -AsUTC).ToString("yyyy-MM-dd HH:mm:ss 'UTC'")))

@@ -81,6 +81,8 @@ ARetroScreenManager::ARetroScreenManager()
     bEmulatorInputEnabled = true;
 }
 
+ARetroScreenManager::~ARetroScreenManager() = default;
+
 void ARetroScreenManager::BeginPlay()
 {
     Super::BeginPlay();
@@ -873,20 +875,36 @@ void ARetroScreenManager::LogRuntimeQualityGate(const FRetroScreenQualityGateCon
     UpdateAudioMetrics();
     UpdateWorkerMetrics();
     const FRetroScreenQualityGateResult Result = EvaluateRuntimeQualityGate(Config);
-    const ELogVerbosity::Type Verbosity = Result.bPassed ? ELogVerbosity::Log : ELogVerbosity::Warning;
-
-    UE_LOG(
-        LogTemp,
-        Verbosity,
-        TEXT("RetroScreen QualityGate | %s | uploads_ok=%lld uploads_fail=%lld avg=%.3fms peak=%.3fms audio_underrun=%lld audio_overrun=%lld"),
-        *Result.Summary,
-        static_cast<long long>(Result.MetricsSnapshot.TextureUploadsSucceeded),
-        static_cast<long long>(Result.MetricsSnapshot.TextureUploadsFailed),
-        Result.MetricsSnapshot.AverageTextureUploadMs,
-        Result.MetricsSnapshot.MaxTextureUploadMs,
-        static_cast<long long>(Result.MetricsSnapshot.AudioUnderrunSamples),
-        static_cast<long long>(Result.MetricsSnapshot.AudioOverrunSamples)
-    );
+    if (Result.bPassed)
+    {
+        UE_LOG(
+            LogTemp,
+            Log,
+            TEXT("RetroScreen QualityGate | %s | uploads_ok=%lld uploads_fail=%lld avg=%.3fms peak=%.3fms audio_underrun=%lld audio_overrun=%lld"),
+            *Result.Summary,
+            static_cast<long long>(Result.MetricsSnapshot.TextureUploadsSucceeded),
+            static_cast<long long>(Result.MetricsSnapshot.TextureUploadsFailed),
+            Result.MetricsSnapshot.AverageTextureUploadMs,
+            Result.MetricsSnapshot.MaxTextureUploadMs,
+            static_cast<long long>(Result.MetricsSnapshot.AudioUnderrunSamples),
+            static_cast<long long>(Result.MetricsSnapshot.AudioOverrunSamples)
+        );
+    }
+    else
+    {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("RetroScreen QualityGate | %s | uploads_ok=%lld uploads_fail=%lld avg=%.3fms peak=%.3fms audio_underrun=%lld audio_overrun=%lld"),
+            *Result.Summary,
+            static_cast<long long>(Result.MetricsSnapshot.TextureUploadsSucceeded),
+            static_cast<long long>(Result.MetricsSnapshot.TextureUploadsFailed),
+            Result.MetricsSnapshot.AverageTextureUploadMs,
+            Result.MetricsSnapshot.MaxTextureUploadMs,
+            static_cast<long long>(Result.MetricsSnapshot.AudioUnderrunSamples),
+            static_cast<long long>(Result.MetricsSnapshot.AudioOverrunSamples)
+        );
+    }
 }
 
 bool ARetroScreenManager::UploadLatestVideoFrame()
@@ -1013,11 +1031,13 @@ void ARetroScreenManager::LoadRuntimeConfig()
         ResolvedConfigPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), ResolvedConfigPath);
     }
 
-    FConfigFile ConfigFile;
-    if (!ConfigFile.Read(ResolvedConfigPath))
+    if (!IFileManager::Get().FileExists(*ResolvedConfigPath))
     {
         return;
     }
+
+    FConfigFile ConfigFile;
+    ConfigFile.Read(ResolvedConfigPath);
 
     static const TCHAR* SectionName = TEXT("RetroScreen");
 
@@ -1066,7 +1086,7 @@ void ARetroScreenManager::LoadRuntimeConfig()
     SetRuntimeCoreOption(TEXT("puae_gfx_linemode"), bRuntimeCrtEnabled ? TEXT("scanlines") : TEXT("none"));
 
     static const TCHAR* CoreOptionsSectionName = TEXT("RetroScreenCoreOptions");
-    if (const FConfigSection* CoreOptionsSection = ConfigFile.Find(CoreOptionsSectionName))
+    if (const FConfigSection* CoreOptionsSection = ConfigFile.FindSection(CoreOptionsSectionName))
     {
         for (const TPair<FName, FConfigValue>& Pair : *CoreOptionsSection)
         {

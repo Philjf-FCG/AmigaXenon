@@ -1,0 +1,4 @@
+title,archetype,rom_path,kickstart_path
+XenonDisk1,keyboard,EmulatorData/ADF/disk1.adf,EmulatorData/Kickstart/kick13.rom
+XenonDisk2,mouse,EmulatorData/ADF/disk2.adf,EmulatorData/Kickstart/kick13.rom
+Barbarian,joystick,EmulatorData/ADF/barbarian.adf,EmulatorData/Kickstart/kick13.rom

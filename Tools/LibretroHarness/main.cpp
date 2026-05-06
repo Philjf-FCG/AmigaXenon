@@ -1,12 +1,15 @@
 #include <windows.h>
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "libretro/libretro.h"
 
@@ -36,6 +39,22 @@ struct CallbackState
     unsigned LastHeight = 0;
     size_t LastPitch = 0;
     retro_pixel_format PixelFormat = RETRO_PIXEL_FORMAT_UNKNOWN;
+};
+
+struct ProcessTimesSnapshot
+{
+    uint64_t KernelTime100Ns = 0;
+    uint64_t UserTime100Ns = 0;
+};
+
+struct RunMetrics
+{
+    double EffectiveFps = 0.0;
+    double FrameTimeP95Ms = 0.0;
+    double FrameTimeP99Ms = 0.0;
+    double CpuUserSeconds = 0.0;
+    double CpuKernelSeconds = 0.0;
+    double CpuAveragePercent = 0.0;
 };
 
 CallbackState GState;
@@ -156,12 +175,94 @@ std::string EscapeJsonString(const std::string& Value)
     return Escaped;
 }
 
+uint64_t FileTimeToUInt64(const FILETIME& Value)
+{
+    ULARGE_INTEGER Joined{};
+    Joined.LowPart = Value.dwLowDateTime;
+    Joined.HighPart = Value.dwHighDateTime;
+    return Joined.QuadPart;
+}
+
+bool CaptureCurrentProcessTimes(ProcessTimesSnapshot& OutSnapshot)
+{
+    FILETIME Creation{};
+    FILETIME Exit{};
+    FILETIME Kernel{};
+    FILETIME User{};
+
+    if (!GetProcessTimes(GetCurrentProcess(), &Creation, &Exit, &Kernel, &User))
+    {
+        return false;
+    }
+
+    OutSnapshot.KernelTime100Ns = FileTimeToUInt64(Kernel);
+    OutSnapshot.UserTime100Ns = FileTimeToUInt64(User);
+    return true;
+}
+
+double ComputePercentileMs(const std::vector<double>& SamplesMs, double Percentile)
+{
+    if (SamplesMs.empty())
+    {
+        return 0.0;
+    }
+
+    std::vector<double> Sorted = SamplesMs;
+    std::sort(Sorted.begin(), Sorted.end());
+
+    const double ClampedPercentile = std::max(0.0, std::min(1.0, Percentile));
+    const size_t Index = static_cast<size_t>(
+        std::ceil(ClampedPercentile * static_cast<double>(Sorted.size()))
+    );
+    const size_t SafeIndex = Index == 0 ? 0 : std::min(Index - 1, Sorted.size() - 1);
+    return Sorted[SafeIndex];
+}
+
+RunMetrics ComputeRunMetrics(
+    int FrameCount,
+    double DurationMs,
+    const std::vector<double>& FrameDurationsMs,
+    const ProcessTimesSnapshot& ProcessStart,
+    const ProcessTimesSnapshot& ProcessEnd
+)
+{
+    RunMetrics Metrics;
+    Metrics.EffectiveFps = DurationMs > 0.0 ? (1000.0 * static_cast<double>(FrameCount) / DurationMs) : 0.0;
+    Metrics.FrameTimeP95Ms = ComputePercentileMs(FrameDurationsMs, 0.95);
+    Metrics.FrameTimeP99Ms = ComputePercentileMs(FrameDurationsMs, 0.99);
+
+    const double KernelSeconds = static_cast<double>(
+        ProcessEnd.KernelTime100Ns >= ProcessStart.KernelTime100Ns
+            ? (ProcessEnd.KernelTime100Ns - ProcessStart.KernelTime100Ns)
+            : 0ULL
+    ) / 10000000.0;
+
+    const double UserSeconds = static_cast<double>(
+        ProcessEnd.UserTime100Ns >= ProcessStart.UserTime100Ns
+            ? (ProcessEnd.UserTime100Ns - ProcessStart.UserTime100Ns)
+            : 0ULL
+    ) / 10000000.0;
+
+    Metrics.CpuKernelSeconds = KernelSeconds;
+    Metrics.CpuUserSeconds = UserSeconds;
+
+    const uint32_t LogicalCpuCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    const double WallSeconds = DurationMs / 1000.0;
+    if (LogicalCpuCount > 0 && WallSeconds > 0.0)
+    {
+        Metrics.CpuAveragePercent = ((KernelSeconds + UserSeconds) / WallSeconds) * 100.0 / static_cast<double>(LogicalCpuCount);
+    }
+
+    return Metrics;
+}
+
 void WriteJsonSummary(
     const std::filesystem::path& OutputPath,
     const std::filesystem::path& CorePath,
     const std::filesystem::path& RomPath,
     int FrameCount,
-    double DurationMs
+    double DurationMs,
+    const RunMetrics& Metrics
 )
 {
     std::ofstream OutFile(OutputPath, std::ios::out | std::ios::trunc);
@@ -171,14 +272,17 @@ void WriteJsonSummary(
         return;
     }
 
-    const double EffectiveFps = DurationMs > 0.0 ? (1000.0 * static_cast<double>(FrameCount) / DurationMs) : 0.0;
-
     OutFile << "{\n";
     OutFile << "  \"core_path\": \"" << EscapeJsonString(CorePath.string()) << "\",\n";
     OutFile << "  \"rom_path\": \"" << EscapeJsonString(RomPath.string()) << "\",\n";
     OutFile << "  \"frames_requested\": " << FrameCount << ",\n";
     OutFile << "  \"duration_ms\": " << DurationMs << ",\n";
-    OutFile << "  \"effective_fps\": " << EffectiveFps << ",\n";
+    OutFile << "  \"effective_fps\": " << Metrics.EffectiveFps << ",\n";
+    OutFile << "  \"frame_time_p95_ms\": " << Metrics.FrameTimeP95Ms << ",\n";
+    OutFile << "  \"frame_time_p99_ms\": " << Metrics.FrameTimeP99Ms << ",\n";
+    OutFile << "  \"cpu_user_seconds\": " << Metrics.CpuUserSeconds << ",\n";
+    OutFile << "  \"cpu_kernel_seconds\": " << Metrics.CpuKernelSeconds << ",\n";
+    OutFile << "  \"cpu_average_percent\": " << Metrics.CpuAveragePercent << ",\n";
     OutFile << "  \"video_callback_frames\": " << GState.VideoFrameCount << ",\n";
     OutFile << "  \"audio_callback_frames\": " << GState.AudioFrameCount << ",\n";
     OutFile << "  \"input_poll_count\": " << GState.InputPollCount << ",\n";
@@ -483,15 +587,39 @@ int wmain(int Argc, wchar_t** Argv)
         return 6;
     }
 
+    std::vector<double> FrameDurationsMs;
+    FrameDurationsMs.reserve(static_cast<size_t>(FrameCount));
+
+    ProcessTimesSnapshot CpuStart{};
+    ProcessTimesSnapshot CpuEnd{};
+    const bool bHasCpuStart = CaptureCurrentProcessTimes(CpuStart);
+
     const auto StartTime = std::chrono::steady_clock::now();
+    auto LastFrameStart = StartTime;
     for (int FrameIndex = 0; FrameIndex < FrameCount; ++FrameIndex)
     {
         Api.run();
+
+        const auto FrameEnd = std::chrono::steady_clock::now();
+        const double FrameMs =
+            std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(FrameEnd - LastFrameStart).count();
+        FrameDurationsMs.push_back(FrameMs);
+        LastFrameStart = FrameEnd;
     }
     const auto EndTime = std::chrono::steady_clock::now();
+    const bool bHasCpuEnd = CaptureCurrentProcessTimes(CpuEnd);
 
     const double DurationMs =
         std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(EndTime - StartTime).count();
+    RunMetrics Metrics;
+    if (bHasCpuStart && bHasCpuEnd)
+    {
+        Metrics = ComputeRunMetrics(FrameCount, DurationMs, FrameDurationsMs, CpuStart, CpuEnd);
+    }
+    else
+    {
+        Metrics = ComputeRunMetrics(FrameCount, DurationMs, FrameDurationsMs, ProcessTimesSnapshot(), ProcessTimesSnapshot());
+    }
 
     std::wcout << L"Harness complete\n";
     std::wcout << L"Frames requested: " << FrameCount << L"\n";
@@ -500,11 +628,14 @@ int wmain(int Argc, wchar_t** Argv)
     std::wcout << L"Input poll count: " << GState.InputPollCount << L"\n";
     std::wcout << L"Last frame geometry: " << GState.LastWidth << L"x" << GState.LastHeight << L" pitch=" << GState.LastPitch << L"\n";
     std::wcout << L"Duration (ms): " << DurationMs << L"\n";
+    std::wcout << L"Effective FPS: " << Metrics.EffectiveFps << L"\n";
+    std::wcout << L"Frame-time P95/P99 (ms): " << Metrics.FrameTimeP95Ms << L" / " << Metrics.FrameTimeP99Ms << L"\n";
+    std::wcout << L"CPU avg (% of system): " << Metrics.CpuAveragePercent << L"\n";
     std::wcout << L"Core options configured: " << GCoreOptions.size() << L"\n";
 
     if (!OutputPath.empty())
     {
-        WriteJsonSummary(OutputPath, CorePath, RomPath, FrameCount, DurationMs);
+        WriteJsonSummary(OutputPath, CorePath, RomPath, FrameCount, DurationMs, Metrics);
     }
 
     Api.unload_game();
