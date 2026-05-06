@@ -1,9 +1,14 @@
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cstdarg>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -19,6 +24,7 @@ struct RetroApi
 {
     void (*set_environment)(retro_environment_t) = nullptr;
     void (*set_video_refresh)(retro_video_refresh_t) = nullptr;
+    void (*set_audio_sample)(retro_audio_sample_t) = nullptr;
     void (*set_audio_sample_batch)(retro_audio_sample_batch_t) = nullptr;
     void (*set_input_poll)(retro_input_poll_t) = nullptr;
     void (*set_input_state)(retro_input_state_t) = nullptr;
@@ -59,6 +65,27 @@ struct RunMetrics
 
 CallbackState GState;
 std::map<std::string, std::string> GCoreOptions;
+std::string GSystemDirectory;
+std::string GSaveDirectory;
+
+void RETRO_CALLCONV CoreLogCallback(enum retro_log_level Level, const char* Format, ...)
+{
+    const char* Prefix = "[CORE]";
+    switch (Level)
+    {
+        case RETRO_LOG_DEBUG: Prefix = "[CORE DEBUG]"; break;
+        case RETRO_LOG_INFO: Prefix = "[CORE INFO]"; break;
+        case RETRO_LOG_WARN: Prefix = "[CORE WARN]"; break;
+        case RETRO_LOG_ERROR: Prefix = "[CORE ERROR]"; break;
+        default: break;
+    }
+
+    std::fprintf(stderr, "%s ", Prefix);
+    va_list Args;
+    va_start(Args, Format);
+    std::vfprintf(stderr, Format, Args);
+    va_end(Args);
+}
 
 std::string WStringToUtf8(const std::wstring& Text)
 {
@@ -318,6 +345,99 @@ bool RETRO_CALLCONV EnvironmentCallback(unsigned Command, void* Data)
         case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO:
             return true;
 
+        case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
+            if (Data != nullptr)
+            {
+                retro_log_callback* LogCallback = static_cast<retro_log_callback*>(Data);
+                LogCallback->log = CoreLogCallback;
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_SET_MESSAGE:
+            if (Data != nullptr)
+            {
+                const retro_message* Message = static_cast<const retro_message*>(Data);
+                if (Message->msg != nullptr)
+                {
+                    std::fprintf(stderr, "[CORE MESSAGE] %s\n", Message->msg);
+                }
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY:
+            if (Data != nullptr)
+            {
+                *static_cast<const char**>(Data) = GSystemDirectory.c_str();
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY:
+            if (Data != nullptr)
+            {
+                *static_cast<const char**>(Data) = GSaveDirectory.c_str();
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_CONTENT_DIRECTORY:
+            if (Data != nullptr)
+            {
+                *static_cast<const char**>(Data) = GSystemDirectory.c_str();
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_LANGUAGE:
+            if (Data != nullptr)
+            {
+                *static_cast<unsigned*>(Data) = RETRO_LANGUAGE_ENGLISH;
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
+            if (Data != nullptr)
+            {
+                *static_cast<unsigned*>(Data) = 1;
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_FASTFORWARDING:
+            if (Data != nullptr)
+            {
+                *static_cast<bool*>(Data) = false;
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_TARGET_REFRESH_RATE:
+            if (Data != nullptr)
+            {
+                *static_cast<float*>(Data) = 60.0f;
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER:
+            if (Data != nullptr)
+            {
+                *static_cast<unsigned*>(Data) = RETRO_HW_CONTEXT_NONE;
+                return true;
+            }
+            return false;
+
+        case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS:
+            if (Data != nullptr)
+            {
+                *static_cast<bool*>(Data) = true;
+                return true;
+            }
+            return false;
+
         case RETRO_ENVIRONMENT_SET_VARIABLES:
             if (Data == nullptr)
             {
@@ -408,6 +528,11 @@ void RETRO_CALLCONV InputPollCallback()
     GState.InputPollCount += 1;
 }
 
+void RETRO_CALLCONV AudioSampleCallback(int16_t, int16_t)
+{
+    GState.AudioFrameCount += 1;
+}
+
 int16_t RETRO_CALLCONV InputStateCallback(unsigned, unsigned, unsigned, unsigned)
 {
     return 0;
@@ -424,6 +549,7 @@ bool ResolveApi(HMODULE ModuleHandle, RetroApi& Api)
 {
     Api.set_environment = LoadSymbol<decltype(Api.set_environment)>(ModuleHandle, "retro_set_environment");
     Api.set_video_refresh = LoadSymbol<decltype(Api.set_video_refresh)>(ModuleHandle, "retro_set_video_refresh");
+    Api.set_audio_sample = LoadSymbol<decltype(Api.set_audio_sample)>(ModuleHandle, "retro_set_audio_sample");
     Api.set_audio_sample_batch = LoadSymbol<decltype(Api.set_audio_sample_batch)>(ModuleHandle, "retro_set_audio_sample_batch");
     Api.set_input_poll = LoadSymbol<decltype(Api.set_input_poll)>(ModuleHandle, "retro_set_input_poll");
     Api.set_input_state = LoadSymbol<decltype(Api.set_input_state)>(ModuleHandle, "retro_set_input_state");
@@ -436,6 +562,7 @@ bool ResolveApi(HMODULE ModuleHandle, RetroApi& Api)
 
     return Api.set_environment != nullptr &&
            Api.set_video_refresh != nullptr &&
+            Api.set_audio_sample != nullptr &&
            Api.set_audio_sample_batch != nullptr &&
            Api.set_input_poll != nullptr &&
            Api.set_input_state != nullptr &&
@@ -502,10 +629,11 @@ int wmain(int Argc, wchar_t** Argv)
 
         if (Arg == L"--kickstart" && (ArgIndex + 1) < Argc)
         {
-            const std::wstring KickstartPath = Argv[++ArgIndex];
-            const std::string KickstartUtf8 = WStringToUtf8(KickstartPath);
+            const std::filesystem::path KickstartPath = std::filesystem::path(Argv[++ArgIndex]).lexically_normal();
+            const std::string KickstartUtf8 = KickstartPath.generic_string();
             GCoreOptions["puae_rom"] = KickstartUtf8;
             GCoreOptions["kickstart_path"] = KickstartUtf8;
+            GCoreOptions["kickstart_rom_file"] = KickstartUtf8;
             continue;
         }
 
@@ -540,6 +668,7 @@ int wmain(int Argc, wchar_t** Argv)
         std::wcerr << L"Failed to load core DLL: " << CorePath << L"\n";
         return 3;
     }
+    std::wcout << L"[Harness] Core DLL loaded\n";
 
     RetroApi Api;
     if (!ResolveApi(CoreModule, Api))
@@ -548,14 +677,25 @@ int wmain(int Argc, wchar_t** Argv)
         FreeLibrary(CoreModule);
         return 4;
     }
+    std::wcout << L"[Harness] Symbols resolved\n";
 
     Api.set_environment(EnvironmentCallback);
     Api.set_video_refresh(VideoRefreshCallback);
+    Api.set_audio_sample(AudioSampleCallback);
     Api.set_audio_sample_batch(AudioSampleBatchCallback);
     Api.set_input_poll(InputPollCallback);
     Api.set_input_state(InputStateCallback);
 
+    const std::filesystem::path WorkingDirectory = std::filesystem::current_path();
+    const std::filesystem::path SaveDirectory = WorkingDirectory / "Saved" / "HarnessRuns";
+    std::error_code DirectoryError;
+    std::filesystem::create_directories(SaveDirectory, DirectoryError);
+    GSystemDirectory = WorkingDirectory.string();
+    GSaveDirectory = SaveDirectory.string();
+
+    std::wcout << L"[Harness] Calling retro_init\n";
     Api.init();
+    std::wcout << L"[Harness] retro_init complete\n";
 
     std::string RomUtf8;
     retro_game_info GameInfo{};
@@ -586,6 +726,7 @@ int wmain(int Argc, wchar_t** Argv)
         FreeLibrary(CoreModule);
         return 6;
     }
+    std::wcout << L"[Harness] retro_load_game complete\n";
 
     std::vector<double> FrameDurationsMs;
     FrameDurationsMs.reserve(static_cast<size_t>(FrameCount));
