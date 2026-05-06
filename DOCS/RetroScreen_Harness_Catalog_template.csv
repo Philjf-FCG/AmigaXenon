@@ -1,0 +1,4 @@
+title,archetype,rom_path,kickstart_path
+KeyboardCase,keyboard,EmulatorData/ADF/Keyboard/TBD.adf,EmulatorData/Kickstart/TBD.rom
+MouseCase,mouse,EmulatorData/ADF/Mouse/TBD.adf,EmulatorData/Kickstart/TBD.rom
+JoystickCase,joystick,EmulatorData/ADF/Joystick/TBD.adf,EmulatorData/Kickstart/TBD.rom

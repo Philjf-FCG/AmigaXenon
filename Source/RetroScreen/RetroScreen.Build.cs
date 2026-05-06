@@ -31,7 +31,8 @@ public class RetroScreen : ModuleRules
             {
                 "Slate",
                 "SlateCore",
-                "AudioMixer"
+                "AudioMixer",
+                "UnrealLibretro"
             }
         );
     }

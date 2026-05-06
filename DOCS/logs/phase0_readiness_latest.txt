@@ -1,0 +1,15 @@
+Phase 0 readiness report - 2026-05-06 08:56:53 UTC
+Root: C:\DevProjects\AmigaXenon\.
+
+[FAIL] UE project file present :: C:\DevProjects\AmigaXenon\.\AMigaXenon\AMigaXenon.uproject
+[FAIL] UE target files present :: Count=0
+[FAIL] PUAE core DLL present :: Count=0
+[FAIL] Kickstart ROM present :: Count=0
+[FAIL] ADF test set (>=3) present :: Count=0
+[PASS] Runtime config present :: C:\DevProjects\AmigaXenon\.\Saved\RetroScreen.ini
+[PASS] Architecture/conventions doc present :: C:\DevProjects\AmigaXenon\.\DOCS\RetroScreen_Architecture_and_Conventions_2026-05-06.md
+[PASS] PUAE acquisition doc present :: C:\DevProjects\AmigaXenon\.\DOCS\RetroScreen_PUAE_Core_Acquisition_and_Verification_2026-05-06.md
+[PASS] Kickstart checklist doc present :: C:\DevProjects\AmigaXenon\.\DOCS\RetroScreen_Kickstart_ROM_Provisioning_Checklist_2026-05-06.md
+[PASS] Harness catalog template present :: C:\DevProjects\AmigaXenon\.\DOCS\RetroScreen_Harness_Catalog_template.csv
+
+OVERALL: FAIL

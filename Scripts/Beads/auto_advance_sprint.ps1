@@ -1,7 +1,7 @@
 param(
     [string]$Label = "sprint-1",
     [int]$Take = 1,
-    [bool]$ReclaimAssigned = $true,
+    [object]$ReclaimAssigned = $true,
     [switch]$DryRun,
     [string]$LogPath = "DOCS\\logs\\beads_auto_advance.log"
 )
@@ -35,12 +35,53 @@ function Write-RunLog {
 function Invoke-Bd {
     param([string[]]$CliArgs)
 
-    $output = & npx -y @beads/bd @CliArgs 2>&1
-    $code = $LASTEXITCODE
+    $hasNativeSetting = $null -ne (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue)
+    if ($hasNativeSetting) {
+        $previousNativeSetting = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    try {
+        $output = & npx -y @beads/bd @CliArgs 2>&1
+        $code = $LASTEXITCODE
+    }
+    finally {
+        if ($hasNativeSetting) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
+        }
+    }
 
     return [pscustomobject]@{
         ExitCode = $code
         Output = ($output -join "`n")
+    }
+}
+
+function Convert-ToBoolean {
+    param(
+        [object]$Value,
+        [bool]$Default = $true
+    )
+
+    if ($null -eq $Value) {
+        return $Default
+    }
+
+    if ($Value -is [bool]) {
+        return [bool]$Value
+    }
+
+    $text = $Value.ToString().Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return $Default
+    }
+
+    switch -Regex ($text.ToLowerInvariant()) {
+        '^(1|true|yes|y|on)$' { return $true }
+        '^(0|false|no|n|off)$' { return $false }
+        default {
+            throw "Invalid boolean value '$text' for ReclaimAssigned. Use true/false."
+        }
     }
 }
 
@@ -71,7 +112,7 @@ function Get-ReadyIssues {
     return @($parsed)
 }
 
-function Try-ClaimIssue {
+function Invoke-ClaimIssue {
     param(
         [string]$IssueId,
         [bool]$AllowReclaim
@@ -100,6 +141,8 @@ function Try-ClaimIssue {
 }
 
 try {
+    $AllowReclaimAssigned = Convert-ToBoolean -Value $ReclaimAssigned -Default $true
+
     Write-RunLog -Message "Run started."
 
     $ready = @(Get-ReadyIssues -SprintLabel $Label)
@@ -109,12 +152,18 @@ try {
         exit 0
     }
 
-    $selected = @($ready | Select-Object -First $Take)
-    Write-Output "Found $($ready.Count) ready issue(s); selecting $($selected.Count) for activation."
-    Write-RunLog -Message "Found $($ready.Count) ready issue(s); selected $($selected.Count)."
+    $targetCount = [Math]::Min($Take, $ready.Count)
+    Write-Output "Found $($ready.Count) ready issue(s); attempting to start up to $targetCount."
+    Write-RunLog -Message "Found $($ready.Count) ready issue(s); target start count $targetCount."
 
     $startedCount = 0
-    foreach ($issue in $selected) {
+    $attemptedCount = 0
+    foreach ($issue in $ready) {
+        if ($startedCount -ge $Take) {
+            break
+        }
+
+        $attemptedCount += 1
         $id = $issue.id
         $title = $issue.title
 
@@ -125,7 +174,7 @@ try {
             continue
         }
 
-        $claimed = Try-ClaimIssue -IssueId $id -AllowReclaim $ReclaimAssigned
+        $claimed = Invoke-ClaimIssue -IssueId $id -AllowReclaim $AllowReclaimAssigned
         if (-not $claimed.Success) {
             $skipMsg = "Skipped $id - unable to claim: $($claimed.Message)"
             Write-Output $skipMsg
@@ -149,7 +198,7 @@ try {
         Write-RunLog -Message $startMsg
     }
 
-    Write-RunLog -Message "Run completed. started=$startedCount selected=$($selected.Count) ready=$($ready.Count)."
+    Write-RunLog -Message "Run completed. started=$startedCount attempted=$attemptedCount target=$Take ready=$($ready.Count)."
 }
 catch {
     Write-RunLog -Message "Run failed: $($_.Exception.Message)" -Level "ERROR"
