@@ -358,6 +358,8 @@ private:
     TArray<float> WorkerScratchAudio;
     TArray<int16> WorkerScratchAudioInt16;
     TMap<FString, std::string> RuntimeCoreOptionsAnsi;
+    std::string RuntimeSystemDirectoryAnsi;
+    std::string RuntimeSaveDirectoryAnsi;
     FThreadSafeBool bEmulatorInputEnabled;
     FTimerHandle RuntimeMetricsLogTimerHandle;
     FTimerHandle RuntimeMetricsCsvTimerHandle;

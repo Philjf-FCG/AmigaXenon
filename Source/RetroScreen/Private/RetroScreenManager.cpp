@@ -1,5 +1,8 @@
 #include "RetroScreenManager.h"
 
+#include <cstdarg>
+#include <cstdio>
+
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
@@ -39,6 +42,40 @@ FString ExtractCoreOptionDefaultValue(const FString& Description)
     }
 
     return Choices.TrimStartAndEnd();
+}
+
+void RETRO_CALLCONV RetroScreenCoreLogCallback(enum retro_log_level Level, const char* Format, ...)
+{
+    if (Format == nullptr)
+    {
+        return;
+    }
+
+    char MessageBuffer[2048];
+    MessageBuffer[0] = '\0';
+
+    va_list Args;
+    va_start(Args, Format);
+    std::vsnprintf(MessageBuffer, sizeof(MessageBuffer), Format, Args);
+    va_end(Args);
+
+    const TCHAR* Message = UTF8_TO_TCHAR(MessageBuffer);
+    switch (Level)
+    {
+        case RETRO_LOG_ERROR:
+            UE_LOG(LogTemp, Error, TEXT("RetroScreen core: %s"), Message);
+            break;
+        case RETRO_LOG_WARN:
+            UE_LOG(LogTemp, Warning, TEXT("RetroScreen core: %s"), Message);
+            break;
+        case RETRO_LOG_INFO:
+            UE_LOG(LogTemp, Log, TEXT("RetroScreen core: %s"), Message);
+            break;
+        case RETRO_LOG_DEBUG:
+        default:
+            UE_LOG(LogTemp, Verbose, TEXT("RetroScreen core: %s"), Message);
+            break;
+    }
 }
 }
 
@@ -151,6 +188,21 @@ bool ARetroScreenManager::InitializeEmulator()
     WorkerScratchPixels.Reset();
     WorkerScratchAudio.Reset();
     WorkerScratchAudioInt16.Reset();
+    RuntimeSystemDirectoryAnsi.clear();
+    RuntimeSaveDirectoryAnsi.clear();
+
+    {
+        const FString SystemDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+        FString SaveDirectory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RetroScreen"));
+        IFileManager::Get().MakeDirectory(*SaveDirectory, true);
+        SaveDirectory = FPaths::ConvertRelativePathToFull(SaveDirectory);
+
+        const FTCHARToUTF8 SystemUtf8(*SystemDirectory);
+        RuntimeSystemDirectoryAnsi.assign(SystemUtf8.Get(), static_cast<size_t>(SystemUtf8.Length()));
+
+        const FTCHARToUTF8 SaveUtf8(*SaveDirectory);
+        RuntimeSaveDirectoryAnsi.assign(SaveUtf8.Get(), static_cast<size_t>(SaveUtf8.Length()));
+    }
 
     LibretroCoreLoader = MakeUnique<FRetroScreenLibretroCore>();
     if (!LibretroCorePath.TrimStartAndEnd().IsEmpty())
@@ -1180,6 +1232,123 @@ bool ARetroScreenManager::HandleLibretroEnvironmentCallback(uint32 Command, void
                 RuntimeMetrics.LastMetricsUpdateSeconds = static_cast<float>(FPlatformTime::Seconds());
             }
 
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            retro_log_callback* LogCallback = static_cast<retro_log_callback*>(Data);
+            LogCallback->log = RetroScreenCoreLogCallback;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_SET_MESSAGE:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            const retro_message* Message = static_cast<const retro_message*>(Data);
+            if (Message == nullptr || Message->msg == nullptr)
+            {
+                return false;
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("RetroScreen core message: %s"), UTF8_TO_TCHAR(Message->msg));
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<const char**>(Data) = RuntimeSystemDirectoryAnsi.c_str();
+            return !RuntimeSystemDirectoryAnsi.empty();
+        }
+
+        case RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<const char**>(Data) = RuntimeSaveDirectoryAnsi.c_str();
+            return !RuntimeSaveDirectoryAnsi.empty();
+        }
+
+        case RETRO_ENVIRONMENT_GET_CONTENT_DIRECTORY:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<const char**>(Data) = RuntimeSystemDirectoryAnsi.c_str();
+            return !RuntimeSystemDirectoryAnsi.empty();
+        }
+
+        case RETRO_ENVIRONMENT_GET_LANGUAGE:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<unsigned*>(Data) = RETRO_LANGUAGE_ENGLISH;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<unsigned*>(Data) = 1;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_GET_FASTFORWARDING:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<bool*>(Data) = false;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_GET_TARGET_REFRESH_RATE:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<float*>(Data) = 60.0f;
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_GET_INPUT_BITMASKS:
+        {
+            if (Data == nullptr)
+            {
+                return false;
+            }
+
+            *static_cast<bool*>(Data) = true;
             return true;
         }
 
