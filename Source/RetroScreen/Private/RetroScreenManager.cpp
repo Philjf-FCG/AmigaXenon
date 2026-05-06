@@ -4,10 +4,19 @@
 #include <cstdio>
 
 #include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
+#include "Camera/CameraComponent.h"
+#include "Components/SceneComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/RunnableThread.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputAction.h"
+#include "InputActionValue.h"
+#include "InputCoreTypes.h"
+#include "InputMappingContext.h"
 #include "LibretroCoreInstance.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
@@ -83,6 +92,13 @@ ARetroScreenManager::ARetroScreenManager()
 {
     PrimaryActorTick.bCanEverTick = true;
 
+    SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+    SetRootComponent(SceneRoot);
+
+    CabinetCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CabinetCamera"));
+    CabinetCamera->SetupAttachment(SceneRoot);
+    CabinetCamera->bAutoActivate = false;
+
     bEmulatorRunning = false;
     bEmulatorPaused = false;
     InteractionInputMode = ERetroScreenInteractionInputMode::Emulator;
@@ -90,6 +106,23 @@ ARetroScreenManager::ARetroScreenManager()
     DefaultJoypadDeadzone = 8192;
     bDefaultJoypadMapAxesToDpad = true;
     bDefaultJoypadInvertY = false;
+    EnvironmentInputPriority = 0;
+    EmulatorInputPriority = 1;
+    EnvironmentInputMappingContext = nullptr;
+    EmulatorInputMappingContext = nullptr;
+    bUseDefaultEnhancedInputMappings = true;
+    InputActionEnterCabinet = nullptr;
+    InputActionPauseOrExit = nullptr;
+    InputActionPrimaryFire = nullptr;
+    InputActionMoveUp = nullptr;
+    InputActionMoveDown = nullptr;
+    InputActionMoveLeft = nullptr;
+    InputActionMoveRight = nullptr;
+    InputActionMoveAxisX = nullptr;
+    InputActionMoveAxisY = nullptr;
+    bEnableCabinetCameraTransition = true;
+    CabinetEnterBlendTime = 0.35f;
+    CabinetExitBlendTime = 0.25f;
     RuntimeRegion = TEXT("PAL");
     bRuntimeCrtEnabled = true;
     RuntimeAudioVolume = 1.0f;
@@ -118,6 +151,9 @@ ARetroScreenManager::ARetroScreenManager()
     SyntheticAudioPhaseRadians = 0.0;
     LastVideoUploadSeconds = 0.0;
     bEmulatorInputEnabled = true;
+    bEnhancedInputActionsBound = false;
+    CachedJoypadAxisX = 0.0f;
+    CachedJoypadAxisY = 0.0f;
 }
 
 ARetroScreenManager::~ARetroScreenManager() = default;
@@ -126,6 +162,7 @@ void ARetroScreenManager::BeginPlay()
 {
     Super::BeginPlay();
     LoadRuntimeConfig();
+    InitializeDefaultInputMappings();
     ApplyInteractionInputMode();
     StartRuntimeMetricsLogging();
     StartRuntimeMetricsCsvExport();
@@ -650,6 +687,9 @@ void ARetroScreenManager::SetEmulatorPaused(bool bPaused)
     {
         InputBridge->ClearStates();
     }
+
+    CachedJoypadAxisX = 0.0f;
+    CachedJoypadAxisY = 0.0f;
 }
 
 void ARetroScreenManager::ReturnToEnvironmentMode(bool bPauseEmulator)
@@ -659,11 +699,24 @@ void ARetroScreenManager::ReturnToEnvironmentMode(bool bPauseEmulator)
         SetEmulatorPaused(true);
     }
 
+    ApplyCabinetViewTransition(false);
     SetInteractionInputMode(ERetroScreenInteractionInputMode::Environment);
 }
 
 void ARetroScreenManager::ResumeEmulatorInteraction(bool bUnpauseEmulator)
 {
+    ApplyCabinetViewTransition(true);
+    SetInteractionInputMode(ERetroScreenInteractionInputMode::Emulator);
+
+    if (bUnpauseEmulator)
+    {
+        SetEmulatorPaused(false);
+    }
+}
+
+void ARetroScreenManager::EnterCabinetInteraction(float BlendTimeOverride, bool bUnpauseEmulator)
+{
+    ApplyCabinetViewTransition(true, BlendTimeOverride);
     SetInteractionInputMode(ERetroScreenInteractionInputMode::Emulator);
 
     if (bUnpauseEmulator)
@@ -685,6 +738,9 @@ void ARetroScreenManager::SetInteractionInputMode(ERetroScreenInteractionInputMo
     {
         InputBridge->ClearStates();
     }
+
+    CachedJoypadAxisX = 0.0f;
+    CachedJoypadAxisY = 0.0f;
 
     ApplyInteractionInputMode();
 }
@@ -1617,9 +1673,388 @@ void ARetroScreenManager::StartRuntimeMetricsLogging()
     );
 }
 
+void ARetroScreenManager::InitializeDefaultInputMappings()
+{
+    if (InputActionEnterCabinet == nullptr)
+    {
+        InputActionEnterCabinet = NewObject<UInputAction>(this, TEXT("IA_RetroScreenEnterCabinet"));
+        InputActionEnterCabinet->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionPauseOrExit == nullptr)
+    {
+        InputActionPauseOrExit = NewObject<UInputAction>(this, TEXT("IA_RetroScreenPauseOrExit"));
+        InputActionPauseOrExit->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionPrimaryFire == nullptr)
+    {
+        InputActionPrimaryFire = NewObject<UInputAction>(this, TEXT("IA_RetroScreenPrimaryFire"));
+        InputActionPrimaryFire->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionMoveUp == nullptr)
+    {
+        InputActionMoveUp = NewObject<UInputAction>(this, TEXT("IA_RetroScreenMoveUp"));
+        InputActionMoveUp->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionMoveDown == nullptr)
+    {
+        InputActionMoveDown = NewObject<UInputAction>(this, TEXT("IA_RetroScreenMoveDown"));
+        InputActionMoveDown->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionMoveLeft == nullptr)
+    {
+        InputActionMoveLeft = NewObject<UInputAction>(this, TEXT("IA_RetroScreenMoveLeft"));
+        InputActionMoveLeft->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionMoveRight == nullptr)
+    {
+        InputActionMoveRight = NewObject<UInputAction>(this, TEXT("IA_RetroScreenMoveRight"));
+        InputActionMoveRight->ValueType = EInputActionValueType::Boolean;
+    }
+
+    if (InputActionMoveAxisX == nullptr)
+    {
+        InputActionMoveAxisX = NewObject<UInputAction>(this, TEXT("IA_RetroScreenMoveAxisX"));
+        InputActionMoveAxisX->ValueType = EInputActionValueType::Axis1D;
+    }
+
+    if (InputActionMoveAxisY == nullptr)
+    {
+        InputActionMoveAxisY = NewObject<UInputAction>(this, TEXT("IA_RetroScreenMoveAxisY"));
+        InputActionMoveAxisY->ValueType = EInputActionValueType::Axis1D;
+    }
+
+    if (EnvironmentInputMappingContext == nullptr)
+    {
+        EnvironmentInputMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_RetroScreen_Environment"));
+    }
+
+    if (EmulatorInputMappingContext == nullptr)
+    {
+        EmulatorInputMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_RetroScreen_Emulator"));
+    }
+
+    if (!bUseDefaultEnhancedInputMappings)
+    {
+        return;
+    }
+
+    if (EnvironmentInputMappingContext != nullptr)
+    {
+        EnvironmentInputMappingContext->MapKey(InputActionEnterCabinet, EKeys::E);
+        EnvironmentInputMappingContext->MapKey(InputActionEnterCabinet, EKeys::LeftMouseButton);
+        EnvironmentInputMappingContext->MapKey(InputActionEnterCabinet, EKeys::Gamepad_FaceButton_Bottom);
+    }
+
+    if (EmulatorInputMappingContext != nullptr)
+    {
+        EmulatorInputMappingContext->MapKey(InputActionPauseOrExit, EKeys::Escape);
+        EmulatorInputMappingContext->MapKey(InputActionPauseOrExit, EKeys::Gamepad_Special_Right);
+
+        EmulatorInputMappingContext->MapKey(InputActionPrimaryFire, EKeys::SpaceBar);
+        EmulatorInputMappingContext->MapKey(InputActionPrimaryFire, EKeys::LeftMouseButton);
+        EmulatorInputMappingContext->MapKey(InputActionPrimaryFire, EKeys::Gamepad_FaceButton_Bottom);
+
+        EmulatorInputMappingContext->MapKey(InputActionMoveUp, EKeys::W);
+        EmulatorInputMappingContext->MapKey(InputActionMoveUp, EKeys::Up);
+        EmulatorInputMappingContext->MapKey(InputActionMoveUp, EKeys::Gamepad_DPad_Up);
+
+        EmulatorInputMappingContext->MapKey(InputActionMoveDown, EKeys::S);
+        EmulatorInputMappingContext->MapKey(InputActionMoveDown, EKeys::Down);
+        EmulatorInputMappingContext->MapKey(InputActionMoveDown, EKeys::Gamepad_DPad_Down);
+
+        EmulatorInputMappingContext->MapKey(InputActionMoveLeft, EKeys::A);
+        EmulatorInputMappingContext->MapKey(InputActionMoveLeft, EKeys::Left);
+        EmulatorInputMappingContext->MapKey(InputActionMoveLeft, EKeys::Gamepad_DPad_Left);
+
+        EmulatorInputMappingContext->MapKey(InputActionMoveRight, EKeys::D);
+        EmulatorInputMappingContext->MapKey(InputActionMoveRight, EKeys::Right);
+        EmulatorInputMappingContext->MapKey(InputActionMoveRight, EKeys::Gamepad_DPad_Right);
+
+        EmulatorInputMappingContext->MapKey(InputActionMoveAxisX, EKeys::Gamepad_LeftX);
+        EmulatorInputMappingContext->MapKey(InputActionMoveAxisY, EKeys::Gamepad_LeftY);
+    }
+}
+
+void ARetroScreenManager::ApplyInputMappingContext()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    if (PlayerController == nullptr)
+    {
+        return;
+    }
+
+    ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer();
+    if (LocalPlayer == nullptr)
+    {
+        return;
+    }
+
+    UEnhancedInputLocalPlayerSubsystem* InputSubsystem =
+        LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+    if (InputSubsystem == nullptr)
+    {
+        return;
+    }
+
+    if (EnvironmentInputMappingContext != nullptr)
+    {
+        InputSubsystem->RemoveMappingContext(EnvironmentInputMappingContext);
+    }
+
+    if (EmulatorInputMappingContext != nullptr)
+    {
+        InputSubsystem->RemoveMappingContext(EmulatorInputMappingContext);
+    }
+
+    if (InteractionInputMode == ERetroScreenInteractionInputMode::Emulator)
+    {
+        if (EmulatorInputMappingContext != nullptr)
+        {
+            InputSubsystem->AddMappingContext(EmulatorInputMappingContext, EmulatorInputPriority);
+        }
+        return;
+    }
+
+    if (EnvironmentInputMappingContext != nullptr)
+    {
+        InputSubsystem->AddMappingContext(EnvironmentInputMappingContext, EnvironmentInputPriority);
+    }
+}
+
+void ARetroScreenManager::BindInputActions()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    if (PlayerController == nullptr)
+    {
+        return;
+    }
+
+    UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerController->InputComponent);
+    if (EnhancedInputComponent == nullptr)
+    {
+        return;
+    }
+
+    if (bEnhancedInputActionsBound && BoundInputComponent.Get() == EnhancedInputComponent)
+    {
+        return;
+    }
+
+    BoundInputComponent = EnhancedInputComponent;
+    bEnhancedInputActionsBound = true;
+
+    if (InputActionEnterCabinet != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionEnterCabinet,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionEnterCabinet
+        );
+    }
+
+    if (InputActionPauseOrExit != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionPauseOrExit,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionPauseOrExit
+        );
+    }
+
+    if (InputActionPrimaryFire != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionPrimaryFire,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionPrimaryFireStarted
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionPrimaryFire,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionPrimaryFireCompleted
+        );
+    }
+
+    if (InputActionMoveUp != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionMoveUp,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionMoveUpStarted
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionMoveUp,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionMoveUpCompleted
+        );
+    }
+
+    if (InputActionMoveDown != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionMoveDown,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionMoveDownStarted
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionMoveDown,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionMoveDownCompleted
+        );
+    }
+
+    if (InputActionMoveLeft != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionMoveLeft,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionMoveLeftStarted
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionMoveLeft,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionMoveLeftCompleted
+        );
+    }
+
+    if (InputActionMoveRight != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionMoveRight,
+            ETriggerEvent::Started,
+            this,
+            &ARetroScreenManager::HandleActionMoveRightStarted
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionMoveRight,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionMoveRightCompleted
+        );
+    }
+
+    if (InputActionMoveAxisX != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionMoveAxisX,
+            ETriggerEvent::Triggered,
+            this,
+            &ARetroScreenManager::HandleActionMoveAxisX
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionMoveAxisX,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionMoveAxisX
+        );
+    }
+
+    if (InputActionMoveAxisY != nullptr)
+    {
+        EnhancedInputComponent->BindAction(
+            InputActionMoveAxisY,
+            ETriggerEvent::Triggered,
+            this,
+            &ARetroScreenManager::HandleActionMoveAxisY
+        );
+        EnhancedInputComponent->BindAction(
+            InputActionMoveAxisY,
+            ETriggerEvent::Completed,
+            this,
+            &ARetroScreenManager::HandleActionMoveAxisY
+        );
+    }
+}
+
+void ARetroScreenManager::ApplyCabinetViewTransition(bool bToCabinet, float BlendTimeOverride)
+{
+    if (!bEnableCabinetCameraTransition)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    if (PlayerController == nullptr)
+    {
+        return;
+    }
+
+    const float BlendTime = (BlendTimeOverride >= 0.0f)
+        ? BlendTimeOverride
+        : (bToCabinet ? CabinetEnterBlendTime : CabinetExitBlendTime);
+
+    if (bToCabinet)
+    {
+        AActor* CurrentViewTarget = PlayerController->GetViewTarget();
+        if (CurrentViewTarget != nullptr && CurrentViewTarget != this)
+        {
+            CachedEnvironmentViewTarget = CurrentViewTarget;
+        }
+
+        PlayerController->SetViewTargetWithBlend(
+            this,
+            FMath::Max(0.0f, BlendTime),
+            EViewTargetBlendFunction::VTBlend_Cubic
+        );
+        return;
+    }
+
+    AActor* ReturnViewTarget = CachedEnvironmentViewTarget.Get();
+    if (ReturnViewTarget == nullptr)
+    {
+        ReturnViewTarget = PlayerController->GetPawn();
+    }
+
+    if (ReturnViewTarget != nullptr && ReturnViewTarget != this)
+    {
+        PlayerController->SetViewTargetWithBlend(
+            ReturnViewTarget,
+            FMath::Max(0.0f, BlendTime),
+            EViewTargetBlendFunction::VTBlend_Cubic
+        );
+    }
+}
+
 void ARetroScreenManager::ApplyInteractionInputMode()
 {
     bEmulatorInputEnabled = (InteractionInputMode == ERetroScreenInteractionInputMode::Emulator);
+
+    ApplyInputMappingContext();
+    BindInputActions();
 
     UWorld* World = GetWorld();
     if (World == nullptr)
@@ -1648,6 +2083,159 @@ void ARetroScreenManager::ApplyInteractionInputMode()
     InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
     PlayerController->SetInputMode(InputMode);
     PlayerController->bShowMouseCursor = true;
+}
+
+void ARetroScreenManager::HandleActionEnterCabinet(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>() || InteractionInputMode != ERetroScreenInteractionInputMode::Environment)
+    {
+        return;
+    }
+
+    EnterCabinetInteraction();
+}
+
+void ARetroScreenManager::HandleActionPauseOrExit(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>())
+    {
+        return;
+    }
+
+    if (InteractionInputMode == ERetroScreenInteractionInputMode::Emulator)
+    {
+        ReturnToEnvironmentMode(true);
+        return;
+    }
+
+    EnterCabinetInteraction();
+}
+
+void ARetroScreenManager::HandleActionPrimaryFireStarted(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>() || InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_B, true);
+}
+
+void ARetroScreenManager::HandleActionPrimaryFireCompleted(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    const bool bPressed = Value.Get<bool>();
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_B, bPressed);
+}
+
+void ARetroScreenManager::HandleActionMoveUpStarted(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>() || InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_UP, true);
+}
+
+void ARetroScreenManager::HandleActionMoveUpCompleted(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    const bool bPressed = Value.Get<bool>();
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_UP, bPressed);
+}
+
+void ARetroScreenManager::HandleActionMoveDownStarted(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>() || InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_DOWN, true);
+}
+
+void ARetroScreenManager::HandleActionMoveDownCompleted(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    const bool bPressed = Value.Get<bool>();
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_DOWN, bPressed);
+}
+
+void ARetroScreenManager::HandleActionMoveLeftStarted(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>() || InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_LEFT, true);
+}
+
+void ARetroScreenManager::HandleActionMoveLeftCompleted(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    const bool bPressed = Value.Get<bool>();
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_LEFT, bPressed);
+}
+
+void ARetroScreenManager::HandleActionMoveRightStarted(const FInputActionValue& Value)
+{
+    if (!Value.Get<bool>() || InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_RIGHT, true);
+}
+
+void ARetroScreenManager::HandleActionMoveRightCompleted(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    const bool bPressed = Value.Get<bool>();
+    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_RIGHT, bPressed);
+}
+
+void ARetroScreenManager::HandleActionMoveAxisX(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    CachedJoypadAxisX = FMath::Clamp(Value.Get<float>(), -1.0f, 1.0f);
+    SetPrimaryEmulatorJoypadAxesNormalized(CachedJoypadAxisX, CachedJoypadAxisY);
+}
+
+void ARetroScreenManager::HandleActionMoveAxisY(const FInputActionValue& Value)
+{
+    if (InteractionInputMode != ERetroScreenInteractionInputMode::Emulator)
+    {
+        return;
+    }
+
+    CachedJoypadAxisY = FMath::Clamp(Value.Get<float>(), -1.0f, 1.0f);
+    SetPrimaryEmulatorJoypadAxesNormalized(CachedJoypadAxisX, CachedJoypadAxisY);
 }
 
 void ARetroScreenManager::SetRuntimeCoreOption(const FString& Key, const FString& Value)

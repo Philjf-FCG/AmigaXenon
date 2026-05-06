@@ -19,6 +19,12 @@ class UTextureRenderTarget2D;
 class ULibretroCoreInstance;
 class UAudioComponent;
 class USoundWave;
+class USceneComponent;
+class UCameraComponent;
+class UInputAction;
+class UInputComponent;
+class UInputMappingContext;
+struct FInputActionValue;
 struct FTimerHandle;
 
 USTRUCT(BlueprintType)
@@ -215,6 +221,9 @@ public:
     void ResumeEmulatorInteraction(bool bUnpauseEmulator = true);
 
     UFUNCTION(BlueprintCallable, Category = "RetroScreen|Input")
+    void EnterCabinetInteraction(float BlendTimeOverride = -1.0f, bool bUnpauseEmulator = true);
+
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Input")
     void SetInteractionInputMode(ERetroScreenInteractionInputMode NewMode);
 
     UFUNCTION(BlueprintPure, Category = "RetroScreen|Input")
@@ -256,6 +265,12 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+    UPROPERTY(VisibleAnywhere, Category = "RetroScreen|Interaction")
+    TObjectPtr<USceneComponent> SceneRoot;
+
+    UPROPERTY(VisibleAnywhere, Category = "RetroScreen|Interaction")
+    TObjectPtr<UCameraComponent> CabinetCamera;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Config")
     FString RetroScreenConfigPath;
 
@@ -288,6 +303,57 @@ private:
 
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Input")
     bool bDefaultJoypadInvertY;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Input|Enhanced", meta = (ClampMin = "0"))
+    int32 EnvironmentInputPriority;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Input|Enhanced", meta = (ClampMin = "0"))
+    int32 EmulatorInputPriority;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Input|Enhanced")
+    TObjectPtr<UInputMappingContext> EnvironmentInputMappingContext;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Input|Enhanced")
+    TObjectPtr<UInputMappingContext> EmulatorInputMappingContext;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Input|Enhanced")
+    bool bUseDefaultEnhancedInputMappings;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionEnterCabinet;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionPauseOrExit;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionPrimaryFire;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionMoveUp;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionMoveDown;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionMoveLeft;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionMoveRight;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionMoveAxisX;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UInputAction> InputActionMoveAxisY;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Interaction")
+    bool bEnableCabinetCameraTransition;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Interaction", meta = (ClampMin = "0.0"))
+    float CabinetEnterBlendTime;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Interaction", meta = (ClampMin = "0.0"))
+    float CabinetExitBlendTime;
 
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Runtime")
     FString RuntimeRegion;
@@ -370,6 +436,11 @@ private:
     FTimerHandle RuntimeMetricsLogTimerHandle;
     FTimerHandle RuntimeMetricsCsvTimerHandle;
     FTimerHandle RuntimeQualityGateLogTimerHandle;
+    TWeakObjectPtr<UInputComponent> BoundInputComponent;
+    TWeakObjectPtr<AActor> CachedEnvironmentViewTarget;
+    bool bEnhancedInputActionsBound;
+    float CachedJoypadAxisX;
+    float CachedJoypadAxisY;
 
     void HandleLibretroInputPoll();
     int16 HandleLibretroInputState(uint32 Port, uint32 Device, uint32 Index, uint32 Id) const;
@@ -388,7 +459,25 @@ private:
     void StartRuntimeQualityGateLogging();
     void StopRuntimeQualityGateLogging();
     void LogRuntimeQualityGateTick();
+    void InitializeDefaultInputMappings();
+    void ApplyInputMappingContext();
+    void BindInputActions();
+    void ApplyCabinetViewTransition(bool bToCabinet, float BlendTimeOverride = -1.0f);
     void ApplyInteractionInputMode();
+    void HandleActionEnterCabinet(const FInputActionValue& Value);
+    void HandleActionPauseOrExit(const FInputActionValue& Value);
+    void HandleActionPrimaryFireStarted(const FInputActionValue& Value);
+    void HandleActionPrimaryFireCompleted(const FInputActionValue& Value);
+    void HandleActionMoveUpStarted(const FInputActionValue& Value);
+    void HandleActionMoveUpCompleted(const FInputActionValue& Value);
+    void HandleActionMoveDownStarted(const FInputActionValue& Value);
+    void HandleActionMoveDownCompleted(const FInputActionValue& Value);
+    void HandleActionMoveLeftStarted(const FInputActionValue& Value);
+    void HandleActionMoveLeftCompleted(const FInputActionValue& Value);
+    void HandleActionMoveRightStarted(const FInputActionValue& Value);
+    void HandleActionMoveRightCompleted(const FInputActionValue& Value);
+    void HandleActionMoveAxisX(const FInputActionValue& Value);
+    void HandleActionMoveAxisY(const FInputActionValue& Value);
     void SetRuntimeCoreOption(const FString& Key, const FString& Value);
     bool InitializeUnrealLibretroCore();
     void ShutdownUnrealLibretroCore();

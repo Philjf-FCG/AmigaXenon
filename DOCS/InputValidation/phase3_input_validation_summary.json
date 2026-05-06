@@ -1,0 +1,41 @@
+[
+  {
+    "run": "disk1",
+    "archetype": "keyboard-centric",
+    "rom": "EmulatorData/ADF/disk1.adf",
+    "input_poll_count": 400,
+    "worker_frames": 400,
+    "texture_uploads": 202,
+    "texture_failures": 0,
+    "audio_underrun": 0,
+    "audio_overrun": 149760,
+    "avg_upload_ms": 0.200648,
+    "max_upload_ms": 1.9571
+  },
+  {
+    "run": "disk2",
+    "archetype": "mouse-centric",
+    "rom": "EmulatorData/ADF/disk2.adf",
+    "input_poll_count": 401,
+    "worker_frames": 401,
+    "texture_uploads": 140,
+    "texture_failures": 0,
+    "audio_underrun": 0,
+    "audio_overrun": 313344,
+    "avg_upload_ms": 0.219957,
+    "max_upload_ms": 1.767602
+  },
+  {
+    "run": "barbarian",
+    "archetype": "joystick-centric",
+    "rom": "EmulatorData/ADF/barbarian.adf",
+    "input_poll_count": 401,
+    "worker_frames": 401,
+    "texture_uploads": 146,
+    "texture_failures": 0,
+    "audio_underrun": 0,
+    "audio_overrun": 295552,
+    "avg_upload_ms": 0.217662,
+    "max_upload_ms": 1.5723
+  }
+]

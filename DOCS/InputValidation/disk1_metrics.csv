@@ -1,0 +1,5 @@
+timestamp_utc,video_frames_published,video_frames_consumed,last_video_frame_sequence,texture_uploads_succeeded,texture_uploads_failed,last_texture_upload_ms,avg_texture_upload_ms,max_texture_upload_ms,audio_buffered_samples,audio_underrun_samples,audio_overrun_samples,audio_samples_pushed,audio_samples_popped,input_poll_count,worker_frames_executed,worker_last_frame_ms,worker_avg_frame_ms,worker_max_frame_ms,last_metrics_update_seconds
+2026-05-06T13:48:31Z,0,0,0,0,0,0.000000,0.000000,0.000000,0,0,0,0,0,0,0,0.000000,0.000000,0.000000,17376782.000000
+2026-05-06T13:48:35Z,220,67,220,67,0,0.133198,0.194621,1.957100,0,0,149760,272640,272640,220,220,0.587400,0.621450,3.804900,17376786.000000
+2026-05-06T13:48:37Z,320,142,320,142,0,0.156902,0.200512,1.957100,0,0,149760,464640,464640,320,320,0.856802,0.673011,3.804900,17376788.000000
+2026-05-06T13:48:39Z,400,202,400,202,0,0.365097,0.200648,1.957100,1920,0,149760,618240,616320,400,400,0.644598,0.707363,3.804900,17376790.000000
