@@ -24,6 +24,7 @@ class UCameraComponent;
 class UInputAction;
 class UInputComponent;
 class UInputMappingContext;
+class URetroScreenPauseMenuWidget;
 struct FInputActionValue;
 struct FTimerHandle;
 
@@ -154,6 +155,30 @@ enum class ERetroScreenInteractionInputMode : uint8
     Environment UMETA(DisplayName = "Environment")
 };
 
+USTRUCT(BlueprintType)
+struct FRetroScreenPauseMenuSettings
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+    float AudioVolume = 1.0f;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu")
+    bool bEnableCrt = true;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu", meta = (ClampMin = "0"))
+    int32 JoypadPort = 0;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu", meta = (ClampMin = "0", ClampMax = "32767"))
+    int32 JoypadDeadzone = 8192;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu")
+    bool bMapAxesToDpad = true;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu")
+    bool bInvertY = false;
+};
+
 UCLASS(BlueprintType, Blueprintable)
 class RETROSCREEN_API ARetroScreenManager : public AActor
 {
@@ -228,6 +253,24 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "RetroScreen|Input")
     ERetroScreenInteractionInputMode GetInteractionInputMode() const { return InteractionInputMode; }
+
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|PauseMenu")
+    void OpenPauseMenu();
+
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|PauseMenu")
+    void ClosePauseMenu(bool bResumeEmulatorInteraction = true);
+
+    UFUNCTION(BlueprintPure, Category = "RetroScreen|PauseMenu")
+    bool IsPauseMenuOpen() const { return bPauseMenuOpen; }
+
+    UFUNCTION(BlueprintPure, Category = "RetroScreen|PauseMenu")
+    FRetroScreenPauseMenuSettings GetPauseMenuSettings() const;
+
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|PauseMenu")
+    void ApplyPauseMenuSettings(const FRetroScreenPauseMenuSettings& NewSettings, bool bSaveToDisk = true);
+
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Runtime")
+    bool SaveRuntimeConfig();
 
     UFUNCTION(BlueprintPure, Category = "RetroScreen|Audio")
     int32 GetBufferedAudioSampleCount() const;
@@ -364,6 +407,15 @@ private:
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Runtime", meta = (ClampMin = "0.0", ClampMax = "2.0"))
     float RuntimeAudioVolume;
 
+    UPROPERTY(VisibleAnywhere, Category = "RetroScreen|PauseMenu")
+    bool bPauseMenuOpen;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|PauseMenu")
+    TSubclassOf<URetroScreenPauseMenuWidget> PauseMenuWidgetClass;
+
+    UPROPERTY(Transient)
+    TObjectPtr<URetroScreenPauseMenuWidget> PauseMenuWidgetInstance;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Metrics")
     bool bLogRuntimeMetricsToOutput;
 
@@ -478,6 +530,8 @@ private:
     void HandleActionMoveRightCompleted(const FInputActionValue& Value);
     void HandleActionMoveAxisX(const FInputActionValue& Value);
     void HandleActionMoveAxisY(const FInputActionValue& Value);
+    void ShowPauseMenuWidget();
+    void HidePauseMenuWidget();
     void SetRuntimeCoreOption(const FString& Key, const FString& Value);
     bool InitializeUnrealLibretroCore();
     void ShutdownUnrealLibretroCore();

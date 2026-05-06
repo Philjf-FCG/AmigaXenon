@@ -28,6 +28,7 @@
 #include "RetroScreenEmulatorWorker.h"
 #include "RetroScreenInputBridge.h"
 #include "RetroScreenLibretroCore.h"
+#include "RetroScreenPauseMenuWidget.h"
 #include "RetroScreenTextureBridge.h"
 #include "RetroScreenVideoBridge.h"
 #include "TimerManager.h"
@@ -126,6 +127,9 @@ ARetroScreenManager::ARetroScreenManager()
     RuntimeRegion = TEXT("PAL");
     bRuntimeCrtEnabled = true;
     RuntimeAudioVolume = 1.0f;
+    bPauseMenuOpen = false;
+    PauseMenuWidgetClass = URetroScreenPauseMenuWidget::StaticClass();
+    PauseMenuWidgetInstance = nullptr;
     bUseUnrealLibretroCore = false;
     LibretroCorePath = TEXT("");
     LibretroRomPath = TEXT("");
@@ -161,6 +165,19 @@ ARetroScreenManager::~ARetroScreenManager() = default;
 void ARetroScreenManager::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (PauseMenuWidgetClass == nullptr || PauseMenuWidgetClass == URetroScreenPauseMenuWidget::StaticClass())
+    {
+        if (UClass* BlueprintPauseMenuClass = StaticLoadClass(
+            URetroScreenPauseMenuWidget::StaticClass(),
+            nullptr,
+            TEXT("/Game/RetroScreen/UI/WBP_RetroScreenPauseMenu.WBP_RetroScreenPauseMenu_C")
+        ))
+        {
+            PauseMenuWidgetClass = BlueprintPauseMenuClass;
+        }
+    }
+
     LoadRuntimeConfig();
     InitializeDefaultInputMappings();
     ApplyInteractionInputMode();
@@ -210,6 +227,7 @@ void ARetroScreenManager::Tick(float DeltaSeconds)
 
 void ARetroScreenManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    HidePauseMenuWidget();
     StopRuntimeMetricsLogging();
     StopRuntimeMetricsCsvExport();
     StopRuntimeQualityGateLogging();
@@ -743,6 +761,125 @@ void ARetroScreenManager::SetInteractionInputMode(ERetroScreenInteractionInputMo
     CachedJoypadAxisY = 0.0f;
 
     ApplyInteractionInputMode();
+}
+
+void ARetroScreenManager::OpenPauseMenu()
+{
+    bPauseMenuOpen = true;
+    ReturnToEnvironmentMode(true);
+    ShowPauseMenuWidget();
+}
+
+void ARetroScreenManager::ClosePauseMenu(bool bResumeEmulatorInteraction)
+{
+    bPauseMenuOpen = false;
+    HidePauseMenuWidget();
+
+    if (bResumeEmulatorInteraction)
+    {
+        ResumeEmulatorInteraction(true);
+    }
+}
+
+FRetroScreenPauseMenuSettings ARetroScreenManager::GetPauseMenuSettings() const
+{
+    FRetroScreenPauseMenuSettings Settings;
+    Settings.AudioVolume = RuntimeAudioVolume;
+    Settings.bEnableCrt = bRuntimeCrtEnabled;
+    Settings.JoypadPort = DefaultJoypadPort;
+    Settings.JoypadDeadzone = DefaultJoypadDeadzone;
+    Settings.bMapAxesToDpad = bDefaultJoypadMapAxesToDpad;
+    Settings.bInvertY = bDefaultJoypadInvertY;
+    return Settings;
+}
+
+void ARetroScreenManager::ApplyPauseMenuSettings(const FRetroScreenPauseMenuSettings& NewSettings, bool bSaveToDisk)
+{
+    RuntimeAudioVolume = FMath::Clamp(NewSettings.AudioVolume, 0.0f, 2.0f);
+    bRuntimeCrtEnabled = NewSettings.bEnableCrt;
+    DefaultJoypadPort = FMath::Max(0, NewSettings.JoypadPort);
+    DefaultJoypadDeadzone = FMath::Clamp(NewSettings.JoypadDeadzone, 0, static_cast<int32>(MAX_int16));
+    bDefaultJoypadMapAxesToDpad = NewSettings.bMapAxesToDpad;
+    bDefaultJoypadInvertY = NewSettings.bInvertY;
+
+    if (LibretroAudioComponent != nullptr)
+    {
+        LibretroAudioComponent->SetVolumeMultiplier(RuntimeAudioVolume);
+    }
+
+    SetRuntimeCoreOption(TEXT("puae_gfx_linemode"), bRuntimeCrtEnabled ? TEXT("scanlines") : TEXT("none"));
+
+    if (InputBridge.IsValid())
+    {
+        InputBridge->ClearStates();
+    }
+
+    CachedJoypadAxisX = 0.0f;
+    CachedJoypadAxisY = 0.0f;
+
+    if (bSaveToDisk)
+    {
+        SaveRuntimeConfig();
+    }
+}
+
+bool ARetroScreenManager::SaveRuntimeConfig()
+{
+    if (RetroScreenConfigPath.TrimStartAndEnd().IsEmpty())
+    {
+        return false;
+    }
+
+    FString ResolvedConfigPath = RetroScreenConfigPath;
+    if (FPaths::IsRelative(ResolvedConfigPath))
+    {
+        ResolvedConfigPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), ResolvedConfigPath);
+    }
+
+    IFileManager::Get().MakeDirectory(*FPaths::GetPath(ResolvedConfigPath), true);
+
+    FConfigFile ConfigFile;
+    ConfigFile.Read(ResolvedConfigPath);
+
+    static const TCHAR* SectionName = TEXT("RetroScreen");
+    ConfigFile.SetBool(SectionName, TEXT("UseUnrealLibretroCore"), bUseUnrealLibretroCore);
+    ConfigFile.SetString(SectionName, TEXT("LibretroCorePath"), *LibretroCorePath);
+    ConfigFile.SetString(SectionName, TEXT("LibretroRomPath"), *LibretroRomPath);
+    ConfigFile.SetString(SectionName, TEXT("RuntimeRegion"), *RuntimeRegion);
+    ConfigFile.SetBool(SectionName, TEXT("EnableCrt"), bRuntimeCrtEnabled);
+    ConfigFile.SetFloat(SectionName, TEXT("RuntimeAudioVolume"), RuntimeAudioVolume);
+
+    ConfigFile.SetString(SectionName, TEXT("DefaultJoypadPort"), *LexToString(DefaultJoypadPort));
+    ConfigFile.SetString(SectionName, TEXT("DefaultJoypadDeadzone"), *LexToString(DefaultJoypadDeadzone));
+    ConfigFile.SetBool(SectionName, TEXT("DefaultJoypadMapAxesToDpad"), bDefaultJoypadMapAxesToDpad);
+    ConfigFile.SetBool(SectionName, TEXT("DefaultJoypadInvertY"), bDefaultJoypadInvertY);
+
+    ConfigFile.SetBool(SectionName, TEXT("LogRuntimeMetrics"), bLogRuntimeMetricsToOutput);
+    ConfigFile.SetFloat(SectionName, TEXT("RuntimeMetricsLogIntervalSeconds"), RuntimeMetricsLogIntervalSeconds);
+    ConfigFile.SetBool(SectionName, TEXT("ExportRuntimeMetricsCsv"), bExportRuntimeMetricsCsv);
+    ConfigFile.SetFloat(SectionName, TEXT("RuntimeMetricsCsvExportIntervalSeconds"), RuntimeMetricsCsvExportIntervalSeconds);
+    ConfigFile.SetString(SectionName, TEXT("RuntimeMetricsCsvPath"), *RuntimeMetricsCsvPath);
+
+    ConfigFile.SetBool(SectionName, TEXT("DrainStandaloneAudioInTick"), bDrainStandaloneAudioInTick);
+    ConfigFile.SetString(SectionName, TEXT("StandaloneAudioDrainSamplesPerTick"), *LexToString(StandaloneAudioDrainSamplesPerTick));
+
+    ConfigFile.SetBool(SectionName, TEXT("LogRuntimeQualityGate"), bLogRuntimeQualityGateToOutput);
+    ConfigFile.SetFloat(SectionName, TEXT("RuntimeQualityGateLogIntervalSeconds"), RuntimeQualityGateLogIntervalSeconds);
+    ConfigFile.SetInt64(SectionName, TEXT("QualityGateMinTextureUploads"), RuntimeQualityGateConfig.MinTextureUploadsForEvaluation);
+    ConfigFile.SetFloat(SectionName, TEXT("QualityGateMaxAverageUploadMs"), RuntimeQualityGateConfig.MaxAverageTextureUploadMs);
+    ConfigFile.SetFloat(SectionName, TEXT("QualityGateMaxPeakUploadMs"), RuntimeQualityGateConfig.MaxPeakTextureUploadMs);
+    ConfigFile.SetInt64(SectionName, TEXT("QualityGateMaxTextureUploadFailures"), RuntimeQualityGateConfig.MaxTextureUploadFailures);
+    ConfigFile.SetInt64(SectionName, TEXT("QualityGateMaxAudioUnderrunSamples"), RuntimeQualityGateConfig.MaxAudioUnderrunSamples);
+    ConfigFile.SetInt64(SectionName, TEXT("QualityGateMaxAudioOverrunSamples"), RuntimeQualityGateConfig.MaxAudioOverrunSamples);
+
+    static const TCHAR* CoreOptionsSectionName = TEXT("RetroScreenCoreOptions");
+    ConfigFile.Remove(CoreOptionsSectionName);
+    for (const TPair<FString, std::string>& Pair : RuntimeCoreOptionsAnsi)
+    {
+        ConfigFile.SetString(CoreOptionsSectionName, *Pair.Key, UTF8_TO_TCHAR(Pair.Value.c_str()));
+    }
+
+    return ConfigFile.Write(ResolvedConfigPath);
 }
 
 int32 ARetroScreenManager::GetBufferedAudioSampleCount() const
@@ -2104,7 +2241,13 @@ void ARetroScreenManager::HandleActionPauseOrExit(const FInputActionValue& Value
 
     if (InteractionInputMode == ERetroScreenInteractionInputMode::Emulator)
     {
-        ReturnToEnvironmentMode(true);
+        OpenPauseMenu();
+        return;
+    }
+
+    if (bPauseMenuOpen)
+    {
+        ClosePauseMenu(true);
         return;
     }
 
@@ -2236,6 +2379,55 @@ void ARetroScreenManager::HandleActionMoveAxisY(const FInputActionValue& Value)
 
     CachedJoypadAxisY = FMath::Clamp(Value.Get<float>(), -1.0f, 1.0f);
     SetPrimaryEmulatorJoypadAxesNormalized(CachedJoypadAxisX, CachedJoypadAxisY);
+}
+
+void ARetroScreenManager::ShowPauseMenuWidget()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    if (PlayerController == nullptr)
+    {
+        return;
+    }
+
+    if (PauseMenuWidgetInstance != nullptr)
+    {
+        if (!PauseMenuWidgetInstance->IsInViewport())
+        {
+            PauseMenuWidgetInstance->AddToViewport(1000);
+        }
+
+        PauseMenuWidgetInstance->SetRetroScreenManager(this);
+        return;
+    }
+
+    TSubclassOf<URetroScreenPauseMenuWidget> WidgetClass = PauseMenuWidgetClass;
+    if (WidgetClass == nullptr)
+    {
+        WidgetClass = URetroScreenPauseMenuWidget::StaticClass();
+    }
+
+    PauseMenuWidgetInstance = CreateWidget<URetroScreenPauseMenuWidget>(PlayerController, WidgetClass);
+    if (PauseMenuWidgetInstance != nullptr)
+    {
+        PauseMenuWidgetInstance->SetRetroScreenManager(this);
+        PauseMenuWidgetInstance->AddToViewport(1000);
+    }
+}
+
+void ARetroScreenManager::HidePauseMenuWidget()
+{
+    if (PauseMenuWidgetInstance == nullptr)
+    {
+        return;
+    }
+
+    PauseMenuWidgetInstance->RemoveFromParent();
 }
 
 void ARetroScreenManager::SetRuntimeCoreOption(const FString& Key, const FString& Value)
