@@ -35,8 +35,16 @@ ARetroScreenCabinetActor::ARetroScreenCabinetActor()
     bUseSingleMeshScreenSlot = false;
     SingleMeshScreenMaterialSlot = 0;
     ScreenTextureParameterName = TEXT("ScreenTexture");
+    bCrtEffectsEnabled = true;
+    CrtEnabledParameterName = TEXT("CRT_Enabled");
+    CrtScanlineIntensityParameterName = TEXT("CRT_ScanlineIntensity");
+    CrtCurvatureParameterName = TEXT("CRT_Curvature");
+    CrtPhosphorBloomParameterName = TEXT("CRT_PhosphorBloom");
+    CrtVignetteParameterName = TEXT("CRT_Vignette");
+    CrtChromaticAberrationParameterName = TEXT("CRT_ChromaticAberration");
     CabinetMaterialInstance = nullptr;
     ScreenMaterialInstance = nullptr;
+    bCrtParametersDirty = true;
 }
 
 void ARetroScreenCabinetActor::BeginPlay()
@@ -46,12 +54,14 @@ void ARetroScreenCabinetActor::BeginPlay()
     ResolveManagerIfNeeded();
     ResolveDefaultCabinetAssets();
     ResolveMaterialInstancesIfNeeded();
+    ApplyCrtMaterialParameters();
     RefreshCabinetScreenTexture();
 }
 
 void ARetroScreenCabinetActor::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    ApplyCrtMaterialParameters();
     RefreshCabinetScreenTexture();
 }
 
@@ -72,6 +82,29 @@ void ARetroScreenCabinetActor::RefreshCabinetScreenTexture()
     }
 
     ScreenMaterialInstance->SetTextureParameterValue(ScreenTextureParameterName, EmulatorTexture);
+}
+
+void ARetroScreenCabinetActor::SetCrtParameters(const FRetroScreenCrtParameters& NewParameters)
+{
+    CrtParameters.ScanlineIntensity = FMath::Clamp(NewParameters.ScanlineIntensity, 0.0f, 1.0f);
+    CrtParameters.Curvature = FMath::Clamp(NewParameters.Curvature, 0.0f, 1.0f);
+    CrtParameters.PhosphorBloom = FMath::Clamp(NewParameters.PhosphorBloom, 0.0f, 4.0f);
+    CrtParameters.Vignette = FMath::Clamp(NewParameters.Vignette, 0.0f, 1.0f);
+    CrtParameters.ChromaticAberration = FMath::Clamp(NewParameters.ChromaticAberration, 0.0f, 2.0f);
+    bCrtParametersDirty = true;
+    ApplyCrtMaterialParameters();
+}
+
+void ARetroScreenCabinetActor::SetCrtEnabled(bool bEnabled)
+{
+    if (bCrtEffectsEnabled == bEnabled)
+    {
+        return;
+    }
+
+    bCrtEffectsEnabled = bEnabled;
+    bCrtParametersDirty = true;
+    ApplyCrtMaterialParameters();
 }
 
 void ARetroScreenCabinetActor::ResolveDefaultCabinetAssets()
@@ -192,6 +225,8 @@ void ARetroScreenCabinetActor::ResolveMaterialInstancesIfNeeded()
 
         ScreenMaterialInstance = UMaterialInstanceDynamic::Create(SourceScreenMaterial, this);
         CabinetMesh->SetMaterial(SingleMeshScreenMaterialSlot, ScreenMaterialInstance);
+        bCrtParametersDirty = true;
+        ApplyCrtMaterialParameters();
         return;
     }
 
@@ -213,4 +248,26 @@ void ARetroScreenCabinetActor::ResolveMaterialInstancesIfNeeded()
 
     ScreenMaterialInstance = UMaterialInstanceDynamic::Create(SourceScreenMaterial, this);
     ScreenMesh->SetMaterial(ScreenMaterialSlot, ScreenMaterialInstance);
+    bCrtParametersDirty = true;
+    ApplyCrtMaterialParameters();
+}
+
+void ARetroScreenCabinetActor::ApplyCrtMaterialParameters()
+{
+    if (!bCrtParametersDirty || ScreenMaterialInstance == nullptr)
+    {
+        return;
+    }
+
+    ScreenMaterialInstance->SetScalarParameterValue(CrtEnabledParameterName, bCrtEffectsEnabled ? 1.0f : 0.0f);
+    ScreenMaterialInstance->SetScalarParameterValue(CrtScanlineIntensityParameterName, CrtParameters.ScanlineIntensity);
+    ScreenMaterialInstance->SetScalarParameterValue(CrtCurvatureParameterName, CrtParameters.Curvature);
+    ScreenMaterialInstance->SetScalarParameterValue(CrtPhosphorBloomParameterName, CrtParameters.PhosphorBloom);
+    ScreenMaterialInstance->SetScalarParameterValue(CrtVignetteParameterName, CrtParameters.Vignette);
+    ScreenMaterialInstance->SetScalarParameterValue(
+        CrtChromaticAberrationParameterName,
+        CrtParameters.ChromaticAberration
+    );
+
+    bCrtParametersDirty = false;
 }
