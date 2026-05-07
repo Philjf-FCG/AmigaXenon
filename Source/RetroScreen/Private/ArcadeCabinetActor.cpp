@@ -28,19 +28,26 @@ AArcadeCabinetActor::AArcadeCabinetActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Create camera component
-	ViewCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewCamera"));
-	SetRootComponent(ViewCamera);
-	ViewCamera->SetRelativeLocation(FVector::ZeroVector);
-	ViewCamera->SetRelativeRotation(FRotator::ZeroRotator);
-	ViewCamera->FieldOfView = CameraFieldOfView;
+	// Create root component as static reference point
+	USceneComponent* RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootScene"));
+	RootSceneComponent->SetRelativeLocation(FVector::ZeroVector);
+	RootSceneComponent->SetRelativeRotation(FRotator::ZeroRotator);
+	SetRootComponent(RootSceneComponent);
 
-	// Create cabinet mesh component (base structure)
+	// Create cabinet mesh component (base structure) at origin
 	CabinetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("CabinetMesh"));
 	CabinetMesh->SetupAttachment(RootComponent);
+	CabinetMesh->SetRelativeLocation(FVector::ZeroVector);
+	CabinetMesh->SetRelativeRotation(FRotator::ZeroRotator);
 	CabinetMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	CabinetMesh->SetGenerateOverlapEvents(false);
 	CabinetMesh->SetCastShadow(true);
+	CabinetMesh->SetVisibility(true);
+
+	// Create camera component positioned to view cabinet
+	ViewCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ViewCamera"));
+	ViewCamera->SetupAttachment(RootComponent);
+	ViewCamera->FieldOfView = CameraFieldOfView;
 
 	// Create screen mesh component (display surface)
 	ScreenMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ScreenMesh"));
