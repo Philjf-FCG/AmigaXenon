@@ -111,6 +111,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet|Camera", meta = (ClampMin = "5.0", ClampMax = "170.0"))
 	float CameraFieldOfView;
 
+	/** Whether the cabinet screen faces the +X direction; disable if camera shows the back face. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet|Camera")
+	bool bCameraFacesPositiveX;
+
 	/** Current screen display mode */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet|Display")
 	ECabinetScreenMode ScreenMode;

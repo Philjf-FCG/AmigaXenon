@@ -16,6 +16,7 @@ AArcadeCabinetActor::AArcadeCabinetActor()
 	, CameraHeightOffset(15.0f)
 	, CameraHorizontalOffset(-5.0f)
 	, CameraFieldOfView(75.0f)
+	, bCameraFacesPositiveX(true)
 	, ScreenMode(ECabinetScreenMode::Embedded)
 	, bCrtEffectsEnabled(true)
 	, bEnableDynamicScreenScaling(true)
@@ -201,22 +202,42 @@ void AArcadeCabinetActor::UpdateScreenTransform(float AspectRatio)
 
 void AArcadeCabinetActor::UpdateCameraMode()
 {
+	// Compute standoff and height from the actual mesh bounds so any cabinet size works.
+	// Default fallback: treat cabinet as ~200 units deep, screen at ~150 units height.
+	float StandoffX = CameraDistance;
+	float ScreenCenterZ = 150.0f + CameraHeightOffset;
+
+	if (CabinetMesh && CabinetMesh->GetStaticMesh())
+	{
+		const FBoxSphereBounds Bounds = CabinetMesh->GetStaticMesh()->GetBounds();
+		// Step back from the outer face of the mesh by the configured distance.
+		StandoffX = Bounds.BoxExtent.X + CameraDistance * 0.8f;
+		// Screen sits in the upper 70% of the cabinet (monitor area).
+		ScreenCenterZ = Bounds.Origin.Z + Bounds.BoxExtent.Z * 0.4f + CameraHeightOffset;
+		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet bounds: origin=%s extent=%s -> standoffX=%.1f screenZ=%.1f"),
+			*Bounds.Origin.ToString(), *Bounds.BoxExtent.ToString(), StandoffX, ScreenCenterZ);
+	}
+
+	// bCameraFacesPositiveX: camera is at +X looking toward -X (Yaw 180).
+	// Disable if the mesh's screen actually faces -X so the camera flips to -X side.
+	const float FacingSign = bCameraFacesPositiveX ? 1.0f : -1.0f;
+	const float CamYaw = bCameraFacesPositiveX ? 180.0f : 0.0f;
+
 	if (ScreenMode == ECabinetScreenMode::Fullscreen)
 	{
-		// Camera at +X of cabinet looking back toward -X where the screen faces.
-		ViewCamera->SetRelativeLocation(FVector(CameraDistance * 1.2f, CameraHorizontalOffset, CameraHeightOffset * 1.5f));
-		ViewCamera->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f));
-		ViewCamera->FieldOfView = CameraFieldOfView;
+		ViewCamera->SetRelativeLocation(FVector(
+			FacingSign * StandoffX * 1.5f, CameraHorizontalOffset, ScreenCenterZ));
+		ViewCamera->SetRelativeRotation(FRotator(-10.0f, CamYaw, 0.0f));
 	}
 	else
 	{
-		// Embedded: camera at +X of cabinet looking back toward -X at the screen.
-		ViewCamera->SetRelativeLocation(FVector(CameraDistance * 0.5f, CameraHorizontalOffset * 0.3f, CameraHeightOffset * 1.0f));
-		ViewCamera->SetRelativeRotation(FRotator(-20.0f, 180.0f, 0.0f));
-		ViewCamera->FieldOfView = CameraFieldOfView;
+		ViewCamera->SetRelativeLocation(FVector(
+			FacingSign * StandoffX, CameraHorizontalOffset * 0.3f, ScreenCenterZ));
+		ViewCamera->SetRelativeRotation(FRotator(-10.0f, CamYaw, 0.0f));
 	}
-	
-	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] UpdateCameraMode - camera relative loc: %s, world loc: %s"), 
+	ViewCamera->FieldOfView = CameraFieldOfView;
+
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] UpdateCameraMode - camera relative loc: %s, world loc: %s"),
 		*ViewCamera->GetRelativeLocation().ToString(), *ViewCamera->GetComponentLocation().ToString());
 }
 
