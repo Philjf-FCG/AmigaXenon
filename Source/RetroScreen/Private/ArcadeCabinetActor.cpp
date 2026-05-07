@@ -203,36 +203,38 @@ void AArcadeCabinetActor::UpdateScreenTransform(float AspectRatio)
 void AArcadeCabinetActor::UpdateCameraMode()
 {
 	// Compute standoff and height from the actual mesh bounds so any cabinet size works.
-	// Default fallback: treat cabinet as ~200 units deep, screen at ~150 units height.
-	float StandoffX = CameraDistance;
+	// Default fallback: screen at ~150 units height, standoff ~150 units.
+	float StandoffDist = CameraDistance * 2.0f;
 	float ScreenCenterZ = 150.0f + CameraHeightOffset;
 
 	if (CabinetMesh && CabinetMesh->GetStaticMesh())
 	{
 		const FBoxSphereBounds Bounds = CabinetMesh->GetStaticMesh()->GetBounds();
-		// Step back from the outer face of the mesh by the configured distance.
-		StandoffX = Bounds.BoxExtent.X + CameraDistance * 0.8f;
-		// Screen sits in the upper 70% of the cabinet (monitor area).
+		// The narrow horizontal half-extent is the front-to-back depth; camera stands off from that face.
+		const float NarrowExtent = FMath::Min(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+		StandoffDist = NarrowExtent + CameraDistance * 0.8f;
+		// Screen sits in the upper portion of the cabinet (monitor area).
 		ScreenCenterZ = Bounds.Origin.Z + Bounds.BoxExtent.Z * 0.4f + CameraHeightOffset;
-		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet bounds: origin=%s extent=%s -> standoffX=%.1f screenZ=%.1f"),
-			*Bounds.Origin.ToString(), *Bounds.BoxExtent.ToString(), StandoffX, ScreenCenterZ);
+		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet bounds: origin=%s extent=%s -> standoff=%.1f screenZ=%.1f"),
+			*Bounds.Origin.ToString(), *Bounds.BoxExtent.ToString(), StandoffDist, ScreenCenterZ);
 	}
 
-	// bCameraFacesPositiveX: camera is at +X looking toward -X (Yaw 180).
-	// Disable if the mesh's screen actually faces -X so the camera flips to -X side.
+	// Screen faces the Y axis on this mesh (narrow horizontal dimension = front-to-back depth).
+	// bCameraFacesPositiveX true  -> camera at +Y looking -Y (Yaw 270)
+	// bCameraFacesPositiveX false -> camera at -Y looking +Y (Yaw  90)
 	const float FacingSign = bCameraFacesPositiveX ? 1.0f : -1.0f;
-	const float CamYaw = bCameraFacesPositiveX ? 180.0f : 0.0f;
+	const float CamYaw     = bCameraFacesPositiveX ? 270.0f : 90.0f;
 
 	if (ScreenMode == ECabinetScreenMode::Fullscreen)
 	{
 		ViewCamera->SetRelativeLocation(FVector(
-			FacingSign * StandoffX * 1.5f, CameraHorizontalOffset, ScreenCenterZ));
+			CameraHorizontalOffset * 0.3f, FacingSign * StandoffDist * 1.5f, ScreenCenterZ));
 		ViewCamera->SetRelativeRotation(FRotator(-10.0f, CamYaw, 0.0f));
 	}
 	else
 	{
 		ViewCamera->SetRelativeLocation(FVector(
-			FacingSign * StandoffX, CameraHorizontalOffset * 0.3f, ScreenCenterZ));
+			CameraHorizontalOffset * 0.3f, FacingSign * StandoffDist, ScreenCenterZ));
 		ViewCamera->SetRelativeRotation(FRotator(-10.0f, CamYaw, 0.0f));
 	}
 	ViewCamera->FieldOfView = CameraFieldOfView;
