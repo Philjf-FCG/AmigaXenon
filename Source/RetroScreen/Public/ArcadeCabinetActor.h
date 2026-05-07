@@ -176,6 +176,9 @@ private:
 	/** Resolve or create dynamic material instance for screen */
 	void ResolveMaterialInstance();
 
+	/** Assign a plane mesh to ScreenMesh and position it at the cabinet screen opening */
+	void SetupScreenMeshPlane(const FBoxSphereBounds& CabinetBounds);
+
 	/** Apply current CRT parameters to the dynamic material instance */
 	void ApplyCrtMaterialParameters();
 		

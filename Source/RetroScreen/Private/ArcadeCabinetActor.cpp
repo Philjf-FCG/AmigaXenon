@@ -157,15 +157,60 @@ void AArcadeCabinetActor::LoadCabinetMesh()
 		bCabinetMeshLoaded = true;
 		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet mesh loaded: %s"), *FullAssetPath);
 
+		const TArray<FStaticMaterial>& Mats = CabinetStaticMesh->GetStaticMaterials();
+		for (int32 i = 0; i < Mats.Num(); ++i)
+		{
+			UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet material slot %d: %s"), i, *Mats[i].MaterialSlotName.ToString());
+		}
+
 		// Position cabinet at origin
 		CabinetMesh->SetRelativeLocation(FVector::ZeroVector);
 		CabinetMesh->SetRelativeRotation(FRotator::ZeroRotator);
 		CabinetMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+
+		SetupScreenMeshPlane(CabinetStaticMesh->GetBounds());
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Failed to load cabinet mesh from: %s"), *FullAssetPath);
 	}
+}
+
+void AArcadeCabinetActor::SetupScreenMeshPlane(const FBoxSphereBounds& CabinetBounds)
+{
+	if (ScreenMesh == nullptr)
+	{
+		return;
+	}
+
+	UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	if (PlaneMesh == nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Failed to load /Engine/BasicShapes/Plane"));
+		return;
+	}
+
+	ScreenMesh->SetStaticMesh(PlaneMesh);
+
+	// Position the plane on the +Y face of the cabinet at the screen area.
+	// CabinetBounds is in mesh-local space (same as CabinetMesh component local space).
+	const float FaceY     = CabinetBounds.BoxExtent.Y - 5.0f;  // 5 units inside front face
+	const float ScreenCenterZ = CabinetBounds.Origin.Z + CabinetBounds.BoxExtent.Z * 0.38f;
+
+	// Scale the unit plane (100×100) to cover ~65% of cabinet width and ~45% of cabinet height.
+	const float ScaleX = (CabinetBounds.BoxExtent.X * 1.3f)  / 100.0f;
+	const float ScaleY = (CabinetBounds.BoxExtent.Z * 0.9f)  / 100.0f;
+
+	ScreenMesh->SetRelativeLocation(FVector(0.0f, FaceY, ScreenCenterZ));
+	// Roll -90° rotates the plane's +Z normal to +Y, making it face the camera.
+	ScreenMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, -90.0f));
+	ScreenMesh->SetRelativeScale3D(FVector(ScaleX, ScaleY, 1.0f));
+	ScreenMesh->SetHiddenInGame(false);
+	ScreenMesh->SetVisibility(true, true);
+
+	UE_LOG(LogTemp, Display,
+		TEXT("[RetroScreen] Screen plane: Y=%.1f Z=%.1f scale=(%.2f,%.2f)"),
+		FaceY, ScreenCenterZ, ScaleX, ScaleY);
 }
 
 void AArcadeCabinetActor::ConfigureForViewport(float AspectRatio)
