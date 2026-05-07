@@ -1,6 +1,8 @@
 #include "ArcadeRoomActor.h"
 
+#include "Components/AudioComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -36,6 +38,18 @@ AArcadeRoomActor::AArcadeRoomActor()
     AmbientLight->SetLightColor(AmbientLightColor);
     AmbientLight->bUseTemperature = false;
 
+    RoomToneAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("RoomToneAudio"));
+    RoomToneAudio->SetupAttachment(SceneRoot);
+    RoomToneAudio->bAutoActivate = false;
+    RoomToneAudio->bIsUISound = false;
+    RoomToneAudio->SetVolumeMultiplier(RoomToneVolume);
+
+    ElectricalHumAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("ElectricalHumAudio"));
+    ElectricalHumAudio->SetupAttachment(SceneRoot);
+    ElectricalHumAudio->bAutoActivate = false;
+    ElectricalHumAudio->bIsUISound = false;
+    ElectricalHumAudio->SetVolumeMultiplier(ElectricalHumVolume);
+
     // Load the engine cube at constructor time (safe for CDO)
     static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
     if (CubeMesh.Succeeded())
@@ -58,6 +72,29 @@ void AArcadeRoomActor::BeginPlay()
 {
     Super::BeginPlay();
     BuildRoom();
+    StartAmbientAudio();
+}
+
+void AArcadeRoomActor::StartAmbientAudio()
+{
+    if (!bAmbientAudioEnabled)
+    {
+        return;
+    }
+
+    if (RoomToneAudio != nullptr && RoomToneSound != nullptr)
+    {
+        RoomToneAudio->SetSound(RoomToneSound);
+        RoomToneAudio->SetVolumeMultiplier(RoomToneVolume);
+        RoomToneAudio->Play();
+    }
+
+    if (ElectricalHumAudio != nullptr && ElectricalHumSound != nullptr)
+    {
+        ElectricalHumAudio->SetSound(ElectricalHumSound);
+        ElectricalHumAudio->SetVolumeMultiplier(ElectricalHumVolume);
+        ElectricalHumAudio->Play();
+    }
 }
 
 void AArcadeRoomActor::BuildRoom()

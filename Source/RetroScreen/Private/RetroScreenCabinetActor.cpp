@@ -2,6 +2,7 @@
 
 #include "RetroScreenManager.h"
 
+#include "Components/RectLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -25,6 +26,20 @@ ARetroScreenCabinetActor::ARetroScreenCabinetActor()
     ScreenMesh->SetupAttachment(CabinetMesh);
     ScreenMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+    ScreenGlowLight = CreateDefaultSubobject<URectLightComponent>(TEXT("ScreenGlowLight"));
+    ScreenGlowLight->SetupAttachment(ScreenMesh);
+    // Emit in the +Z direction of the screen mesh local space (away from the screen face toward the room).
+    // URectLightComponent emits along local -Z, so rotate 180° around X to flip into +Z.
+    ScreenGlowLight->SetRelativeLocation(FVector(0.0f, 0.0f, 2.0f));
+    ScreenGlowLight->SetRelativeRotation(FRotator(180.0f, 0.0f, 0.0f));
+    ScreenGlowLight->SetIntensity(ScreenGlowIntensity);
+    ScreenGlowLight->SetLightColor(ScreenGlowColor);
+    ScreenGlowLight->AttenuationRadius = ScreenGlowAttenuationRadius;
+    ScreenGlowLight->SourceWidth = ScreenGlowSourceWidth;
+    ScreenGlowLight->SourceHeight = ScreenGlowSourceHeight;
+    ScreenGlowLight->bUseTemperature = false;
+    ScreenGlowLight->SetCastShadows(false);
+
     bAutoFindManager = true;
     CabinetMeshAsset = nullptr;
     ScreenMeshAsset = nullptr;
@@ -45,6 +60,14 @@ ARetroScreenCabinetActor::ARetroScreenCabinetActor()
     CabinetMaterialInstance = nullptr;
     ScreenMaterialInstance = nullptr;
     bCrtParametersDirty = true;
+    CurrentLinkedGlowColor = ScreenGlowColor;
+    CurrentLinkedGlowIntensity = ScreenGlowIntensity;
+}
+
+void ARetroScreenCabinetActor::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+    ApplyScreenGlowParameters();
 }
 
 void ARetroScreenCabinetActor::BeginPlay()
@@ -55,6 +78,7 @@ void ARetroScreenCabinetActor::BeginPlay()
     ResolveDefaultCabinetAssets();
     ResolveMaterialInstancesIfNeeded();
     ApplyCrtMaterialParameters();
+    ApplyScreenGlowParameters();
     RefreshCabinetScreenTexture();
 }
 
@@ -63,6 +87,63 @@ void ARetroScreenCabinetActor::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds);
     ApplyCrtMaterialParameters();
     RefreshCabinetScreenTexture();
+
+    if (bScreenGlowEnabled && bScreenLinkGlowToContent && ScreenGlowLight != nullptr && RetroScreenManager != nullptr)
+    {
+        UpdateScreenLinkedGlow(DeltaSeconds);
+    }
+}
+
+void ARetroScreenCabinetActor::UpdateScreenLinkedGlow(float DeltaSeconds)
+{
+    const FLinearColor AvgColor = RetroScreenManager->GetAverageScreenColor();
+
+    // Perceptual luminance (Rec. 709 coefficients)
+    const float Luminance = AvgColor.R * 0.2126f + AvgColor.G * 0.7152f + AvgColor.B * 0.0722f;
+    const float TargetIntensity = ScreenGlowIntensity * FMath::Sqrt(FMath::Clamp(Luminance, 0.0f, 1.0f));
+
+    // Tint the light toward the screen color; fall back to the designer-set color on black frames
+    const FLinearColor TargetColor = Luminance > 0.01f ? AvgColor : ScreenGlowColor;
+
+    const float Alpha = FMath::Clamp(ScreenGlowTrackingSpeed * DeltaSeconds, 0.0f, 1.0f);
+    CurrentLinkedGlowIntensity = FMath::Lerp(CurrentLinkedGlowIntensity, TargetIntensity, Alpha);
+    CurrentLinkedGlowColor = FMath::Lerp(CurrentLinkedGlowColor, TargetColor, Alpha);
+
+    ScreenGlowLight->SetIntensity(CurrentLinkedGlowIntensity);
+    ScreenGlowLight->SetLightColor(CurrentLinkedGlowColor);
+}
+
+void ARetroScreenCabinetActor::ApplyScreenGlowParameters()
+{
+    if (ScreenGlowLight == nullptr)
+    {
+        return;
+    }
+
+    ScreenGlowLight->SetVisibility(bScreenGlowEnabled);
+    ScreenGlowLight->SetIntensity(bScreenGlowEnabled ? ScreenGlowIntensity : 0.0f);
+    ScreenGlowLight->SetLightColor(ScreenGlowColor);
+    ScreenGlowLight->AttenuationRadius = ScreenGlowAttenuationRadius;
+    ScreenGlowLight->SourceWidth = ScreenGlowSourceWidth;
+    ScreenGlowLight->SourceHeight = ScreenGlowSourceHeight;
+}
+
+void ARetroScreenCabinetActor::SetScreenGlowEnabled(bool bEnabled)
+{
+    bScreenGlowEnabled = bEnabled;
+    ApplyScreenGlowParameters();
+}
+
+void ARetroScreenCabinetActor::SetScreenGlowIntensity(float Intensity)
+{
+    ScreenGlowIntensity = FMath::Clamp(Intensity, 0.0f, 5000.0f);
+    ApplyScreenGlowParameters();
+}
+
+void ARetroScreenCabinetActor::SetScreenGlowColor(FLinearColor Color)
+{
+    ScreenGlowColor = Color;
+    ApplyScreenGlowParameters();
 }
 
 void ARetroScreenCabinetActor::RefreshCabinetScreenTexture()

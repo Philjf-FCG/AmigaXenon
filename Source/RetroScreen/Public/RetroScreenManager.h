@@ -204,6 +204,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "RetroScreen")
     void ShutdownEmulator();
 
+    /** Override the ROM path before calling InitializeEmulator() (used by compatibility runner). */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen")
+    void SetLibretroRomPath(const FString& NewPath) { LibretroRomPath = NewPath; }
+
     UFUNCTION(BlueprintPure, Category = "RetroScreen")
     bool IsEmulatorRunning() const { return bEmulatorRunning; }
 
@@ -218,6 +222,10 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "RetroScreen|Video")
     UTextureRenderTarget2D* GetLibretroRenderTarget() const { return LibretroRenderTarget; }
+
+    /** Average linear color of the last uploaded emulator frame, sampled on the game thread. */
+    UFUNCTION(BlueprintPure, Category = "RetroScreen|Video")
+    FLinearColor GetAverageScreenColor() const { return CachedAverageScreenColor; }
 
     UFUNCTION(BlueprintCallable, Category = "RetroScreen|Audio")
     void PublishTestToneAudio(float FrequencyHz = 440.0f, float DurationSeconds = 0.1f);
@@ -570,6 +578,7 @@ private:
     bool bEnhancedInputActionsBound;
     float CachedJoypadAxisX;
     float CachedJoypadAxisY;
+    FLinearColor CachedAverageScreenColor;
 
     void HandleLibretroInputPoll();
     int16 HandleLibretroInputState(uint32 Port, uint32 Device, uint32 Index, uint32 Id) const;

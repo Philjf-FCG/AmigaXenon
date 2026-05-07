@@ -1217,6 +1217,33 @@ bool ARetroScreenManager::UploadLatestVideoFrame()
         return false;
     }
 
+    // Compute average screen color (sampled every 16th pixel) for screen-linked lighting.
+    // Pixel layout is BGRX (B at +0, G at +1, R at +2, X at +3).
+    if (LatestFrame.IsValid() && LatestFrame.Pixels.Num() >= 4)
+    {
+        float AccumR = 0.0f, AccumG = 0.0f, AccumB = 0.0f;
+        int32 Samples = 0;
+        const int32 PixelStride = 16;
+        const uint8* Data = LatestFrame.Pixels.GetData();
+        for (int32 Row = 0; Row < LatestFrame.Height; Row += PixelStride)
+        {
+            const uint8* RowPtr = Data + static_cast<int64>(Row) * LatestFrame.Pitch;
+            for (int32 Col = 0; Col < LatestFrame.Width; Col += PixelStride)
+            {
+                const uint8* Px = RowPtr + static_cast<int64>(Col) * 4;
+                AccumB += Px[0];
+                AccumG += Px[1];
+                AccumR += Px[2];
+                ++Samples;
+            }
+        }
+        if (Samples > 0)
+        {
+            const float Inv = 1.0f / (static_cast<float>(Samples) * 255.0f);
+            CachedAverageScreenColor = FLinearColor(AccumR * Inv, AccumG * Inv, AccumB * Inv);
+        }
+    }
+
     {
         FScopeLock Lock(&MetricsMutex);
         RuntimeMetrics.VideoFramesConsumed += 1;

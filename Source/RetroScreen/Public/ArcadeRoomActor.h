@@ -5,8 +5,10 @@
 
 #include "ArcadeRoomActor.generated.h"
 
+class UAudioComponent;
 class UPointLightComponent;
 class USceneComponent;
+class USoundBase;
 class UStaticMeshComponent;
 
 /**
@@ -32,6 +34,7 @@ protected:
 
 private:
     void BuildRoom();
+    void StartAmbientAudio();
 
     UPROPERTY(VisibleAnywhere, Category = "Arcade Room")
     TObjectPtr<USceneComponent> SceneRoot;
@@ -53,6 +56,12 @@ private:
 
     UPROPERTY(VisibleAnywhere, Category = "Arcade Room|Lighting")
     TObjectPtr<UPointLightComponent> AmbientLight;
+
+    UPROPERTY(VisibleAnywhere, Category = "Arcade Room|Audio")
+    TObjectPtr<UAudioComponent> RoomToneAudio;
+
+    UPROPERTY(VisibleAnywhere, Category = "Arcade Room|Audio")
+    TObjectPtr<UAudioComponent> ElectricalHumAudio;
 
 public:
     /** Half-extent of the room in each horizontal axis (cm). Full room = 2x this. */
@@ -82,4 +91,24 @@ public:
     /** Ambient point light colour. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Room|Lighting")
     FLinearColor AmbientLightColor = FLinearColor(1.0f, 0.9f, 0.8f);
+
+    /** Enable background room-tone and electrical-hum ambient layers. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Room|Audio")
+    bool bAmbientAudioEnabled = true;
+
+    /** Sound asset for the continuous room-tone loop (low background noise, footsteps, distant machines). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Room|Audio")
+    TObjectPtr<USoundBase> RoomToneSound;
+
+    /** Sound asset for the electrical / CRT hum loop distinct from emulator audio. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Room|Audio")
+    TObjectPtr<USoundBase> ElectricalHumSound;
+
+    /** Volume multiplier for the room-tone layer. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Room|Audio", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+    float RoomToneVolume = 0.35f;
+
+    /** Volume multiplier for the electrical-hum layer. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Room|Audio", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+    float ElectricalHumVolume = 0.2f;
 };
