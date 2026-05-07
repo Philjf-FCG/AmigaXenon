@@ -15,3 +15,10 @@ Build/
 .vs/
 *.sln
 *.xcworkspace
+
+# Copyrighted emulator assets — never commit these
+EmulatorData/**/*.rom
+EmulatorData/**/*.adf
+EmulatorData/**/*.ipf
+EmulatorData/**/*.hdf
+Plugins/UnrealLibretro/MyCores/*.dll
