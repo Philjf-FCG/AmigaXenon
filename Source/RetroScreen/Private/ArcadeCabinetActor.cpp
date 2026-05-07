@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "Engine/Texture2D.h"
 #include "HAL/FileManager.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -20,11 +21,12 @@ AArcadeCabinetActor::AArcadeCabinetActor()
 	, ScreenHorizontalScale(0.95f)
 	, ScreenVerticalScale(0.90f)
 	, CabinetMeshAssetPath(TEXT("Fab/Rusty_Japanese_Arcade/rusty_japanese_arcade/StaticMeshes/rusty_japanese_arcade"))
-	, ScreenMaterialAssetPath(TEXT(""))
+	, ScreenMaterialAssetPath(TEXT("/UnrealLibretro/Materials/M_GlowingScreen.M_GlowingScreen"))
 	, CachedViewportWidth(0)
 	, CachedViewportHeight(0)
 	, bCabinetMeshLoaded(false)
 	, ScreenDynamicMaterial(nullptr)
+	, RetroScreenManager(nullptr)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -117,6 +119,8 @@ void AArcadeCabinetActor::Tick(float DeltaSeconds)
 		CachedViewportHeight = ViewportHeight;
 		ConfigureForViewport(static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight));
 	}
+		// Update screen texture from emulator each frame
+		RefreshScreenTexture();
 }
 
 void AArcadeCabinetActor::LoadCabinetMesh()
@@ -227,5 +231,71 @@ void AArcadeCabinetActor::SetScreenMode(ECabinetScreenMode NewMode)
 		}
 
 		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Screen mode changed to: %d"), static_cast<int32>(NewMode));
+	}
+}
+void AArcadeCabinetActor::RefreshScreenTexture()
+{
+	if (!RetroScreenManager)
+	{
+		// Try to find RetroScreenManager in the world
+		for (TActorIterator<ARetroScreenManager> ActorItr(GetWorld()); ActorItr; ++ActorItr)
+		{
+			RetroScreenManager = *ActorItr;
+			break;
+		}
+	}
+
+	if (!RetroScreenManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] RefreshScreenTexture: RetroScreenManager not found"));
+		return;
+	}
+
+	// Ensure we have a dynamic material instance
+	ResolveMaterialInstance();
+
+	if (!ScreenDynamicMaterial)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] RefreshScreenTexture: ScreenDynamicMaterial is null"));
+		return;
+	}
+
+	// Get the current emulator texture from RetroScreenManager
+	UTexture2D* EmulatorTexture = RetroScreenManager->GetEmulatorTexture();
+	if (EmulatorTexture)
+	{
+		// Bind the emulator texture to the screen material
+		ScreenDynamicMaterial->SetTextureParameterValue(ScreenTextureParameterName, EmulatorTexture);
+		UE_LOG(LogTemp, Verbose, TEXT("[RetroScreen] Screen texture updated"));
+	}
+}
+
+void AArcadeCabinetActor::ResolveMaterialInstance()
+{
+	if (ScreenDynamicMaterial || ScreenMesh == nullptr)
+	{
+		return;
+	}
+
+	if (ScreenMaterial == nullptr && !ScreenMaterialAssetPath.IsEmpty())
+	{
+		ScreenMaterial = LoadObject<UMaterialInterface>(nullptr, *ScreenMaterialAssetPath);
+	}
+
+	UMaterialInterface* SourceMaterial = ScreenMaterial;
+	if (SourceMaterial == nullptr)
+	{
+		SourceMaterial = ScreenMesh->GetMaterial(0);
+	}
+
+	// If we don't have a dynamic material yet, create one from the resolved base material
+	if (SourceMaterial)
+	{
+		ScreenDynamicMaterial = UMaterialInstanceDynamic::Create(SourceMaterial, this);
+		if (ScreenDynamicMaterial)
+		{
+			ScreenMesh->SetMaterial(0, ScreenDynamicMaterial);
+			UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Created dynamic material instance for screen"));
+		}
 	}
 }

@@ -144,4 +144,14 @@ private:
 
 	/** Switch between embedded and fullscreen camera setup */
 	void UpdateCameraMode();
+		/** Refresh screen texture from RetroScreenManager emulator output */
+		void RefreshScreenTexture();
+		
+		/** Resolve or create dynamic material instance for screen */
+		void ResolveMaterialInstance();
+		
+		/** Reference to RetroScreen manager for emulator texture */
+		UPROPERTY(Transient)
+		class ARetroScreenManager* RetroScreenManager;
 };
+
