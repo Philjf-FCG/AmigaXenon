@@ -25,6 +25,7 @@ AArcadeCabinetActor::AArcadeCabinetActor()
 	, CachedViewportWidth(0)
 	, CachedViewportHeight(0)
 	, bCabinetMeshLoaded(false)
+	, bCrtEffectsEnabled(true)
 	, ScreenDynamicMaterial(nullptr)
 	, RetroScreenManager(nullptr)
 {
@@ -233,6 +234,37 @@ void AArcadeCabinetActor::SetScreenMode(ECabinetScreenMode NewMode)
 		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Screen mode changed to: %d"), static_cast<int32>(NewMode));
 	}
 }
+
+void AArcadeCabinetActor::SetCrtParameters(const FRetroScreenCrtParameters& NewParameters)
+{
+	CrtParameters.ScanlineIntensity = FMath::Clamp(NewParameters.ScanlineIntensity, 0.0f, 1.0f);
+	CrtParameters.Curvature = FMath::Clamp(NewParameters.Curvature, 0.0f, 1.0f);
+	CrtParameters.PhosphorBloom = FMath::Clamp(NewParameters.PhosphorBloom, 0.0f, 4.0f);
+	CrtParameters.Vignette = FMath::Clamp(NewParameters.Vignette, 0.0f, 1.0f);
+	CrtParameters.ChromaticAberration = FMath::Clamp(NewParameters.ChromaticAberration, 0.0f, 2.0f);
+	ApplyCrtMaterialParameters();
+}
+
+void AArcadeCabinetActor::SetCrtEnabled(bool bEnabled)
+{
+	bCrtEffectsEnabled = bEnabled;
+	ApplyCrtMaterialParameters();
+}
+
+void AArcadeCabinetActor::ApplyCrtMaterialParameters()
+{
+	if (ScreenDynamicMaterial == nullptr)
+	{
+		return;
+	}
+
+	ScreenDynamicMaterial->SetScalarParameterValue(TEXT("CRT_Enabled"), bCrtEffectsEnabled ? 1.0f : 0.0f);
+	ScreenDynamicMaterial->SetScalarParameterValue(TEXT("CRT_ScanlineIntensity"), CrtParameters.ScanlineIntensity);
+	ScreenDynamicMaterial->SetScalarParameterValue(TEXT("CRT_Curvature"), CrtParameters.Curvature);
+	ScreenDynamicMaterial->SetScalarParameterValue(TEXT("CRT_PhosphorBloom"), CrtParameters.PhosphorBloom);
+	ScreenDynamicMaterial->SetScalarParameterValue(TEXT("CRT_Vignette"), CrtParameters.Vignette);
+	ScreenDynamicMaterial->SetScalarParameterValue(TEXT("CRT_ChromaticAberration"), CrtParameters.ChromaticAberration);
+}
 void AArcadeCabinetActor::RefreshScreenTexture()
 {
 	if (!RetroScreenManager)
@@ -296,6 +328,7 @@ void AArcadeCabinetActor::ResolveMaterialInstance()
 		{
 			ScreenMesh->SetMaterial(0, ScreenDynamicMaterial);
 			UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Created dynamic material instance for screen"));
+			ApplyCrtMaterialParameters();
 		}
 	}
 }

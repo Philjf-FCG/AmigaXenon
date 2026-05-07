@@ -794,6 +794,7 @@ FRetroScreenPauseMenuSettings ARetroScreenManager::GetPauseMenuSettings() const
     FRetroScreenPauseMenuSettings Settings;
     Settings.AudioVolume = RuntimeAudioVolume;
     Settings.bEnableCrt = bRuntimeCrtEnabled;
+    Settings.CrtParameters = RuntimeCrtParameters;
     Settings.JoypadPort = DefaultJoypadPort;
     Settings.JoypadDeadzone = DefaultJoypadDeadzone;
     Settings.bMapAxesToDpad = bDefaultJoypadMapAxesToDpad;
@@ -805,6 +806,7 @@ void ARetroScreenManager::ApplyPauseMenuSettings(const FRetroScreenPauseMenuSett
 {
     RuntimeAudioVolume = FMath::Clamp(NewSettings.AudioVolume, 0.0f, 2.0f);
     bRuntimeCrtEnabled = NewSettings.bEnableCrt;
+    RuntimeCrtParameters = NewSettings.CrtParameters;
     DefaultJoypadPort = FMath::Max(0, NewSettings.JoypadPort);
     DefaultJoypadDeadzone = FMath::Clamp(NewSettings.JoypadDeadzone, 0, static_cast<int32>(MAX_int16));
     bDefaultJoypadMapAxesToDpad = NewSettings.bMapAxesToDpad;
@@ -816,6 +818,12 @@ void ARetroScreenManager::ApplyPauseMenuSettings(const FRetroScreenPauseMenuSett
     }
 
     SetRuntimeCoreOption(TEXT("puae_gfx_linemode"), bRuntimeCrtEnabled ? TEXT("scanlines") : TEXT("none"));
+
+    if (ArcadeCabinetActorInstance != nullptr)
+    {
+        ArcadeCabinetActorInstance->SetCrtEnabled(bRuntimeCrtEnabled);
+        ArcadeCabinetActorInstance->SetCrtParameters(RuntimeCrtParameters);
+    }
 
     if (InputBridge.IsValid())
     {
@@ -855,6 +863,11 @@ bool ARetroScreenManager::SaveRuntimeConfig()
     ConfigFile.SetString(SectionName, TEXT("LibretroRomPath"), *LibretroRomPath);
     ConfigFile.SetString(SectionName, TEXT("RuntimeRegion"), *RuntimeRegion);
     ConfigFile.SetBool(SectionName, TEXT("EnableCrt"), bRuntimeCrtEnabled);
+    ConfigFile.SetFloat(SectionName, TEXT("CrtScanlineIntensity"), RuntimeCrtParameters.ScanlineIntensity);
+    ConfigFile.SetFloat(SectionName, TEXT("CrtCurvature"), RuntimeCrtParameters.Curvature);
+    ConfigFile.SetFloat(SectionName, TEXT("CrtPhosphorBloom"), RuntimeCrtParameters.PhosphorBloom);
+    ConfigFile.SetFloat(SectionName, TEXT("CrtVignette"), RuntimeCrtParameters.Vignette);
+    ConfigFile.SetFloat(SectionName, TEXT("CrtChromaticAberration"), RuntimeCrtParameters.ChromaticAberration);
     ConfigFile.SetFloat(SectionName, TEXT("RuntimeAudioVolume"), RuntimeAudioVolume);
 
     ConfigFile.SetString(SectionName, TEXT("DefaultJoypadPort"), *LexToString(DefaultJoypadPort));
@@ -1318,6 +1331,11 @@ void ARetroScreenManager::LoadRuntimeConfig()
     ConfigFile.GetString(SectionName, TEXT("LibretroRomPath"), LibretroRomPath);
     ConfigFile.GetString(SectionName, TEXT("RuntimeRegion"), RuntimeRegion);
     ConfigFile.GetBool(SectionName, TEXT("EnableCrt"), bRuntimeCrtEnabled);
+    ConfigFile.GetFloat(SectionName, TEXT("CrtScanlineIntensity"), RuntimeCrtParameters.ScanlineIntensity);
+    ConfigFile.GetFloat(SectionName, TEXT("CrtCurvature"), RuntimeCrtParameters.Curvature);
+    ConfigFile.GetFloat(SectionName, TEXT("CrtPhosphorBloom"), RuntimeCrtParameters.PhosphorBloom);
+    ConfigFile.GetFloat(SectionName, TEXT("CrtVignette"), RuntimeCrtParameters.Vignette);
+    ConfigFile.GetFloat(SectionName, TEXT("CrtChromaticAberration"), RuntimeCrtParameters.ChromaticAberration);
     ConfigFile.GetFloat(SectionName, TEXT("RuntimeAudioVolume"), RuntimeAudioVolume);
 
     ConfigFile.GetInt(SectionName, TEXT("DefaultJoypadPort"), DefaultJoypadPort);
@@ -1349,6 +1367,11 @@ void ARetroScreenManager::LoadRuntimeConfig()
     RuntimeMetricsCsvExportIntervalSeconds = FMath::Max(0.1f, RuntimeMetricsCsvExportIntervalSeconds);
     RuntimeQualityGateLogIntervalSeconds = FMath::Max(0.1f, RuntimeQualityGateLogIntervalSeconds);
     RuntimeAudioVolume = FMath::Clamp(RuntimeAudioVolume, 0.0f, 2.0f);
+    RuntimeCrtParameters.ScanlineIntensity = FMath::Clamp(RuntimeCrtParameters.ScanlineIntensity, 0.0f, 1.0f);
+    RuntimeCrtParameters.Curvature = FMath::Clamp(RuntimeCrtParameters.Curvature, 0.0f, 1.0f);
+    RuntimeCrtParameters.PhosphorBloom = FMath::Clamp(RuntimeCrtParameters.PhosphorBloom, 0.0f, 4.0f);
+    RuntimeCrtParameters.Vignette = FMath::Clamp(RuntimeCrtParameters.Vignette, 0.0f, 1.0f);
+    RuntimeCrtParameters.ChromaticAberration = FMath::Clamp(RuntimeCrtParameters.ChromaticAberration, 0.0f, 2.0f);
     DefaultJoypadPort = FMath::Max(0, DefaultJoypadPort);
     DefaultJoypadDeadzone = FMath::Clamp(DefaultJoypadDeadzone, 0, static_cast<int32>(MAX_int16));
     StandaloneAudioDrainSamplesPerTick = FMath::Max(0, StandaloneAudioDrainSamplesPerTick);

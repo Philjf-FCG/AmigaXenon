@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "RetroScreenCabinetActor.h"
 #include "ArcadeCabinetActor.generated.h"
 
 class UCameraComponent;
@@ -62,6 +63,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Arcade Cabinet")
 	void SetScreenMode(ECabinetScreenMode NewMode);
 
+	UFUNCTION(BlueprintCallable, Category = "Arcade Cabinet|CRT")
+	void SetCrtParameters(const FRetroScreenCrtParameters& NewParameters);
+
+	UFUNCTION(BlueprintPure, Category = "Arcade Cabinet|CRT")
+	FRetroScreenCrtParameters GetCrtParameters() const { return CrtParameters; }
+
+	UFUNCTION(BlueprintCallable, Category = "Arcade Cabinet|CRT")
+	void SetCrtEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Arcade Cabinet|CRT")
+	bool IsCrtEnabled() const { return bCrtEffectsEnabled; }
+
 	/** Camera viewing the cabinet */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet")
 	UCameraComponent* ViewCamera;
@@ -101,6 +114,14 @@ public:
 	/** Current screen display mode */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet|Display")
 	ECabinetScreenMode ScreenMode;
+
+	/** Enable CRT post-process effects on screen material */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Cabinet|CRT")
+	bool bCrtEffectsEnabled;
+
+	/** CRT visual parameters applied to the screen dynamic material */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Cabinet|CRT")
+	FRetroScreenCrtParameters CrtParameters;
 
 	/** Enable dynamic screen sizing based on viewport aspect ratio */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet|Display")
@@ -144,11 +165,15 @@ private:
 
 	/** Switch between embedded and fullscreen camera setup */
 	void UpdateCameraMode();
-		/** Refresh screen texture from RetroScreenManager emulator output */
-		void RefreshScreenTexture();
-		
-		/** Resolve or create dynamic material instance for screen */
-		void ResolveMaterialInstance();
+
+	/** Refresh screen texture from RetroScreenManager emulator output */
+	void RefreshScreenTexture();
+
+	/** Resolve or create dynamic material instance for screen */
+	void ResolveMaterialInstance();
+
+	/** Apply current CRT parameters to the dynamic material instance */
+	void ApplyCrtMaterialParameters();
 		
 		/** Reference to RetroScreen manager for emulator texture */
 		UPROPERTY(Transient)

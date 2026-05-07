@@ -64,6 +64,21 @@ private:
     void HandleCrtStateChanged(bool bChecked);
 
     UFUNCTION()
+    void HandleCrtScanlineChanged(float NewValue);
+
+    UFUNCTION()
+    void HandleCrtCurvatureChanged(float NewValue);
+
+    UFUNCTION()
+    void HandleCrtPhosphorBloomChanged(float NewValue);
+
+    UFUNCTION()
+    void HandleCrtVignetteChanged(float NewValue);
+
+    UFUNCTION()
+    void HandleCrtChromaticAberrationChanged(float NewValue);
+
+    UFUNCTION()
     void HandleAxesToDpadChanged(bool bChecked);
 
     UFUNCTION()
@@ -89,6 +104,21 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UCheckBox> EnableCrtCheckBox;
+
+    UPROPERTY(Transient)
+    TObjectPtr<USlider> CrtScanlineSlider;
+
+    UPROPERTY(Transient)
+    TObjectPtr<USlider> CrtCurvatureSlider;
+
+    UPROPERTY(Transient)
+    TObjectPtr<USlider> CrtPhosphorBloomSlider;
+
+    UPROPERTY(Transient)
+    TObjectPtr<USlider> CrtVignetteSlider;
+
+    UPROPERTY(Transient)
+    TObjectPtr<USlider> CrtChromaticAberrationSlider;
 
     UPROPERTY(Transient)
     TObjectPtr<USpinBox> JoypadPortSpinBox;

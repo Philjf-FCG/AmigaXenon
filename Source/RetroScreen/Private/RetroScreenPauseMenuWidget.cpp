@@ -158,6 +158,56 @@ void URetroScreenPauseMenuWidget::HandleCrtStateChanged(bool bChecked)
     ApplyControlsToSettings(true);
 }
 
+void URetroScreenPauseMenuWidget::HandleCrtScanlineChanged(float NewValue)
+{
+    if (bRefreshingControls)
+    {
+        return;
+    }
+
+    ApplyControlsToSettings(true);
+}
+
+void URetroScreenPauseMenuWidget::HandleCrtCurvatureChanged(float NewValue)
+{
+    if (bRefreshingControls)
+    {
+        return;
+    }
+
+    ApplyControlsToSettings(true);
+}
+
+void URetroScreenPauseMenuWidget::HandleCrtPhosphorBloomChanged(float NewValue)
+{
+    if (bRefreshingControls)
+    {
+        return;
+    }
+
+    ApplyControlsToSettings(true);
+}
+
+void URetroScreenPauseMenuWidget::HandleCrtVignetteChanged(float NewValue)
+{
+    if (bRefreshingControls)
+    {
+        return;
+    }
+
+    ApplyControlsToSettings(true);
+}
+
+void URetroScreenPauseMenuWidget::HandleCrtChromaticAberrationChanged(float NewValue)
+{
+    if (bRefreshingControls)
+    {
+        return;
+    }
+
+    ApplyControlsToSettings(true);
+}
+
 void URetroScreenPauseMenuWidget::HandleAxesToDpadChanged(bool bChecked)
 {
     if (bRefreshingControls)
@@ -247,6 +297,36 @@ void URetroScreenPauseMenuWidget::BuildFallbackLayoutIfNeeded()
             CrtRow->AddChildToHorizontalBox(EnableCrtCheckBox);
         }
     }
+
+    auto MakeCrtSlider = [&](UVerticalBox* Parent, const FString& Label, float MinVal, float MaxVal,
+                              TObjectPtr<USlider>& OutSlider, void (URetroScreenPauseMenuWidget::* Handler)(float)) {
+        if (UHorizontalBox* Row = CreateLabeledRow(WidgetTree, Parent, Label))
+        {
+            OutSlider = WidgetTree->ConstructWidget<USlider>();
+            if (OutSlider != nullptr)
+            {
+                OutSlider->SetMinValue(MinVal);
+                OutSlider->SetMaxValue(MaxVal);
+                OutSlider->SetStepSize(0.01f);
+                OutSlider->OnValueChanged.AddDynamic(this, Handler);
+                if (UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(OutSlider))
+                {
+                    Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+                }
+            }
+        }
+    };
+
+    MakeCrtSlider(RootBox, TEXT("Scanline Intensity"), 0.0f, 1.0f,
+                  CrtScanlineSlider, &URetroScreenPauseMenuWidget::HandleCrtScanlineChanged);
+    MakeCrtSlider(RootBox, TEXT("CRT Curvature"), 0.0f, 1.0f,
+                  CrtCurvatureSlider, &URetroScreenPauseMenuWidget::HandleCrtCurvatureChanged);
+    MakeCrtSlider(RootBox, TEXT("Phosphor Bloom"), 0.0f, 4.0f,
+                  CrtPhosphorBloomSlider, &URetroScreenPauseMenuWidget::HandleCrtPhosphorBloomChanged);
+    MakeCrtSlider(RootBox, TEXT("Vignette"), 0.0f, 1.0f,
+                  CrtVignetteSlider, &URetroScreenPauseMenuWidget::HandleCrtVignetteChanged);
+    MakeCrtSlider(RootBox, TEXT("Chromatic Aberration"), 0.0f, 2.0f,
+                  CrtChromaticAberrationSlider, &URetroScreenPauseMenuWidget::HandleCrtChromaticAberrationChanged);
 
     if (UHorizontalBox* PortRow = CreateLabeledRow(WidgetTree, RootBox, TEXT("Joypad Port")))
     {
@@ -361,6 +441,31 @@ void URetroScreenPauseMenuWidget::RefreshControlsFromSettings()
         EnableCrtCheckBox->SetIsChecked(Settings.bEnableCrt);
     }
 
+    if (CrtScanlineSlider != nullptr)
+    {
+        CrtScanlineSlider->SetValue(Settings.CrtParameters.ScanlineIntensity);
+    }
+
+    if (CrtCurvatureSlider != nullptr)
+    {
+        CrtCurvatureSlider->SetValue(Settings.CrtParameters.Curvature);
+    }
+
+    if (CrtPhosphorBloomSlider != nullptr)
+    {
+        CrtPhosphorBloomSlider->SetValue(Settings.CrtParameters.PhosphorBloom);
+    }
+
+    if (CrtVignetteSlider != nullptr)
+    {
+        CrtVignetteSlider->SetValue(Settings.CrtParameters.Vignette);
+    }
+
+    if (CrtChromaticAberrationSlider != nullptr)
+    {
+        CrtChromaticAberrationSlider->SetValue(Settings.CrtParameters.ChromaticAberration);
+    }
+
     if (JoypadPortSpinBox != nullptr)
     {
         JoypadPortSpinBox->SetValue(static_cast<float>(Settings.JoypadPort));
@@ -396,6 +501,31 @@ void URetroScreenPauseMenuWidget::ApplyControlsToSettings(bool bSaveToDisk)
     if (EnableCrtCheckBox != nullptr)
     {
         Settings.bEnableCrt = EnableCrtCheckBox->IsChecked();
+    }
+
+    if (CrtScanlineSlider != nullptr)
+    {
+        Settings.CrtParameters.ScanlineIntensity = CrtScanlineSlider->GetValue();
+    }
+
+    if (CrtCurvatureSlider != nullptr)
+    {
+        Settings.CrtParameters.Curvature = CrtCurvatureSlider->GetValue();
+    }
+
+    if (CrtPhosphorBloomSlider != nullptr)
+    {
+        Settings.CrtParameters.PhosphorBloom = CrtPhosphorBloomSlider->GetValue();
+    }
+
+    if (CrtVignetteSlider != nullptr)
+    {
+        Settings.CrtParameters.Vignette = CrtVignetteSlider->GetValue();
+    }
+
+    if (CrtChromaticAberrationSlider != nullptr)
+    {
+        Settings.CrtParameters.ChromaticAberration = CrtChromaticAberrationSlider->GetValue();
     }
 
     if (JoypadPortSpinBox != nullptr)

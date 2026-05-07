@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "RetroScreenAudioBridge.h"
+#include "RetroScreenCabinetActor.h"
 #include "RetroScreenEmulatorWorker.h"
 #include "RetroScreenInputBridge.h"
 #include "RetroScreenLibretroCore.h"
@@ -166,6 +167,9 @@ struct FRetroScreenPauseMenuSettings
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu")
     bool bEnableCrt = true;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu")
+    FRetroScreenCrtParameters CrtParameters;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "RetroScreen|PauseMenu", meta = (ClampMin = "0"))
     int32 JoypadPort = 0;
@@ -404,6 +408,9 @@ private:
 
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Runtime")
     bool bRuntimeCrtEnabled;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Runtime")
+    FRetroScreenCrtParameters RuntimeCrtParameters;
 
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Runtime", meta = (ClampMin = "0.0", ClampMax = "2.0"))
     float RuntimeAudioVolume;
