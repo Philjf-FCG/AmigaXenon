@@ -17,8 +17,8 @@ Build/
 *.xcworkspace
 
 # Copyrighted emulator assets — never commit these
-EmulatorData/**/*.rom
-EmulatorData/**/*.adf
-EmulatorData/**/*.ipf
-EmulatorData/**/*.hdf
+*.rom
+*.adf
+*.ipf
+*.hdf
 Plugins/UnrealLibretro/MyCores/*.dll

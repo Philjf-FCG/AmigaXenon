@@ -132,6 +132,7 @@ ARetroScreenManager::ARetroScreenManager()
     RuntimeRegion = TEXT("PAL");
     bRuntimeCrtEnabled = true;
     RuntimeAudioVolume = 1.0f;
+    bAutoSpawnArcadeCabinet = true;
     bPauseMenuOpen = false;
     PauseMenuWidgetClass = URetroScreenPauseMenuWidget::StaticClass();
     PauseMenuWidgetInstance = nullptr;

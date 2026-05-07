@@ -6,6 +6,7 @@
 #include "ArcadeRoomActor.generated.h"
 
 class UAudioComponent;
+class UMaterialInterface;
 class UPointLightComponent;
 class USceneComponent;
 class USoundBase;
