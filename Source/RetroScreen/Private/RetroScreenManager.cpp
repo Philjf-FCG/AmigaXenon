@@ -133,6 +133,7 @@ ARetroScreenManager::ARetroScreenManager()
     bRuntimeCrtEnabled = true;
     RuntimeAudioVolume = 1.0f;
     bAutoSpawnArcadeCabinet = true;
+    bAutoStartEmulator = true;
     bPauseMenuOpen = false;
     PauseMenuWidgetClass = URetroScreenPauseMenuWidget::StaticClass();
     PauseMenuWidgetInstance = nullptr;
@@ -191,7 +192,22 @@ void ARetroScreenManager::BeginPlay()
     }
 
     LoadRuntimeConfig();
-    ShowSetupWidgetIfNeeded();
+
+    {
+        const FRetroScreenSetupIssues Issues = CheckSetupStatus();
+        if (Issues.IsComplete())
+        {
+            if (bAutoStartEmulator)
+            {
+                InitializeEmulator();
+            }
+        }
+        else
+        {
+            ShowSetupWidget(Issues);
+        }
+    }
+
     InitializeDefaultInputMappings();
     ApplyInteractionInputMode();
     StartRuntimeMetricsLogging();

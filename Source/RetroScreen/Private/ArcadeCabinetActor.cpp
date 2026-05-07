@@ -70,7 +70,10 @@ void AArcadeCabinetActor::BeginPlay()
 	// Load cabinet mesh asset
 	LoadCabinetMesh();
 
-	// Update camera configuration for initial viewport
+	// Update camera configuration for initial viewport.
+	// GetViewportSize returns 0 during BeginPlay in PIE before the first frame is rendered,
+	// so we always call ConfigureForViewport — falling back to 16:9 if the size isn't ready yet.
+	// Tick() will reconfigure when the real dimensions become available.
 	if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
 	{
 		int32 ViewportWidth = 0;
@@ -81,9 +84,13 @@ void AArcadeCabinetActor::BeginPlay()
 		{
 			CachedViewportWidth = ViewportWidth;
 			CachedViewportHeight = ViewportHeight;
-			ConfigureForViewport(static_cast<float>(ViewportWidth) / static_cast<float>(ViewportHeight));
 		}
 	}
+
+	const float InitialAspect = (CachedViewportWidth > 0 && CachedViewportHeight > 0)
+		? static_cast<float>(CachedViewportWidth) / static_cast<float>(CachedViewportHeight)
+		: 16.0f / 9.0f;
+	ConfigureForViewport(InitialAspect);
 
 	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Arcade Cabinet initialized at %s"), *GetActorLocation().ToString());
 	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet mesh visibility: %d, hidden in game: %d"), 

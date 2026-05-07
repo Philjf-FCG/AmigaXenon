@@ -501,6 +501,10 @@ private:
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Cabinet")
     bool bAutoSpawnArcadeCabinet;
 
+    /** Automatically call InitializeEmulator() on BeginPlay when setup is complete. */
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Config")
+    bool bAutoStartEmulator;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Metrics")
     bool bLogRuntimeMetricsToOutput;
 
