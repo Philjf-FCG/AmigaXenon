@@ -55,6 +55,9 @@ private:
     UPROPERTY(VisibleAnywhere, Category = "Arcade Room")
     TObjectPtr<UStaticMeshComponent> Ceiling;
 
+    UPROPERTY(VisibleAnywhere, Category = "Arcade Room")
+    TObjectPtr<UStaticMeshComponent> FrontWall;
+
     UPROPERTY(VisibleAnywhere, Category = "Arcade Room|Lighting")
     TObjectPtr<UPointLightComponent> AmbientLight;
 

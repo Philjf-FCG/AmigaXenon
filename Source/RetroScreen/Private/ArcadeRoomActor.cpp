@@ -1,7 +1,9 @@
 #include "ArcadeRoomActor.h"
 
 #include "Components/AudioComponent.h"
+#include "Components/LightComponent.h"
 #include "Components/PointLightComponent.h"
+#include "EngineUtils.h"
 #include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -26,11 +28,12 @@ AArcadeRoomActor::AArcadeRoomActor()
         return Comp;
     };
 
-    Floor    = MakePanel(TEXT("Floor"));
-    BackWall = MakePanel(TEXT("BackWall"));
-    LeftWall = MakePanel(TEXT("LeftWall"));
+    Floor     = MakePanel(TEXT("Floor"));
+    BackWall  = MakePanel(TEXT("BackWall"));
+    LeftWall  = MakePanel(TEXT("LeftWall"));
     RightWall = MakePanel(TEXT("RightWall"));
-    Ceiling  = MakePanel(TEXT("Ceiling"));
+    Ceiling   = MakePanel(TEXT("Ceiling"));
+    FrontWall = MakePanel(TEXT("FrontWall"));
 
     AmbientLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("AmbientLight"));
     AmbientLight->SetupAttachment(SceneRoot);
@@ -59,6 +62,7 @@ AArcadeRoomActor::AArcadeRoomActor()
         LeftWall->SetStaticMesh(CubeMesh.Object);
         RightWall->SetStaticMesh(CubeMesh.Object);
         Ceiling->SetStaticMesh(CubeMesh.Object);
+        FrontWall->SetStaticMesh(CubeMesh.Object);
     }
 }
 
@@ -73,6 +77,30 @@ void AArcadeRoomActor::BeginPlay()
     Super::BeginPlay();
     BuildRoom();
     StartAmbientAudio();
+
+    // Disable any sky light and atmospheric actors that exist in the default level.
+    // This is an indoor arcade room — sky reflections leaking onto the cabinet screen
+    // make the emulator output invisible.
+    for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+    {
+        AActor* Act = *It;
+        if (Act == this) { continue; }
+        const FString CN = Act->GetClass()->GetName();
+        if (CN.Contains(TEXT("SkyLight")) || CN.Contains(TEXT("SkyAtmosphere"))
+            || CN.Contains(TEXT("BP_Sky")) || CN.Contains(TEXT("HeightFog")))
+        {
+            Act->SetActorHiddenInGame(true);
+            // Disable the light component so it stops contributing sky irradiance
+            TArray<ULightComponent*> LCs;
+            Act->GetComponents<ULightComponent>(LCs);
+            for (ULightComponent* LC : LCs)
+            {
+                LC->SetVisibility(false);
+            }
+            UE_LOG(LogTemp, Display, TEXT("[ArcadeRoom] Disabled sky actor: %s (%s)"),
+                *Act->GetName(), *CN);
+        }
+    }
 }
 
 void AArcadeRoomActor::StartAmbientAudio()
@@ -132,6 +160,11 @@ void AArcadeRoomActor::BuildRoom()
     RightWall->SetRelativeRotation(FRotator::ZeroRotator);
     RightWall->SetRelativeScale3D(FVector(T / 100.0f, W / 100.0f, H / 100.0f));
 
+    // --- Front wall (positive Y face) — closes the room so sky is not visible ---
+    FrontWall->SetRelativeLocation(FVector(0.0f, RoomHalfExtentXY + T * 0.5f, H * 0.5f));
+    FrontWall->SetRelativeRotation(FRotator::ZeroRotator);
+    FrontWall->SetRelativeScale3D(FVector(W / 100.0f, T / 100.0f, H / 100.0f));
+
     // --- Ambient light: ceiling-centre, aimed down ---
     AmbientLight->SetRelativeLocation(FVector(0.0f, 0.0f, H * 0.8f));
     AmbientLight->SetIntensity(AmbientLightIntensity);
@@ -150,5 +183,6 @@ void AArcadeRoomActor::BuildRoom()
         LeftWall->SetMaterial(0, WallMaterial);
         RightWall->SetMaterial(0, WallMaterial);
         Ceiling->SetMaterial(0, WallMaterial);
+        FrontWall->SetMaterial(0, WallMaterial);
     }
 }

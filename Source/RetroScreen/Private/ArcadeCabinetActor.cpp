@@ -360,7 +360,16 @@ void AArcadeCabinetActor::RefreshScreenTexture()
 	{
 		// Bind the emulator texture to the screen material (updates both ScreenMesh and CabinetMesh slot 1)
 		ScreenDynamicMaterial->SetTextureParameterValue(ScreenTextureParameterName, EmulatorTexture);
-		UE_LOG(LogTemp, Verbose, TEXT("[RetroScreen] Screen texture updated"));
+
+		// Log once when the texture is first successfully bound so we can confirm the pipeline
+		static bool bFirstBind = false;
+		if (!bFirstBind)
+		{
+			bFirstBind = true;
+			UE_LOG(LogTemp, Display, TEXT("[RetroScreen] First emulator texture bind: %dx%d, param='%s'"),
+				EmulatorTexture->GetSizeX(), EmulatorTexture->GetSizeY(),
+				*ScreenTextureParameterName.ToString());
+		}
 	}
 	else
 	{
