@@ -120,8 +120,9 @@ void AArcadeCabinetActor::LoadCabinetMesh()
 		return;
 	}
 
-	// Construct full asset path for content loading
-	FString FullAssetPath = FString::Printf(TEXT("%s.%s"), *CabinetMeshAssetPath, *FPaths::GetBaseFilename(CabinetMeshAssetPath));
+	// Construct full asset path for content loading (include /Game/ mount point and asset reference)
+	FString Filename = FPaths::GetBaseFilename(CabinetMeshAssetPath);
+	FString FullAssetPath = FString::Printf(TEXT("/Game/%s.%s"), *CabinetMeshAssetPath, *Filename);
 
 	// Load cabinet mesh
 	UStaticMesh* CabinetStaticMesh = LoadObject<UStaticMesh>(nullptr, *FullAssetPath);
