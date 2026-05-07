@@ -41,7 +41,7 @@ void ARetroScreenGameMode::StartPlay()
     {
         FActorSpawnParameters Params;
         Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        World->SpawnActor<AArcadeRoomActor>(FTransform::Identity, Params);
+        World->SpawnActor<AArcadeRoomActor>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
     }
 
     // Emulator orchestrator.  FindOrSpawnArcadeCabinet() runs in its BeginPlay
@@ -54,7 +54,7 @@ void ARetroScreenGameMode::StartPlay()
     {
         FActorSpawnParameters Params;
         Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        World->SpawnActor<ARetroScreenManager>(FTransform::Identity, Params);
+        World->SpawnActor<ARetroScreenManager>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
     }
 
     // Trigger BeginPlay on all actors (including the ones we just spawned).
