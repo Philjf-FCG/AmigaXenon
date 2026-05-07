@@ -572,6 +572,7 @@ void URetroScreenPauseMenuWidget::OpenInputMappingFlow()
     if (ARetroScreenManager* Manager = ResolveRetroScreenManager())
     {
         Manager->ClosePauseMenu(false);
+        Manager->OpenRemapWidget();
     }
 }
 

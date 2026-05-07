@@ -12,6 +12,7 @@
 #include "RetroScreenTextureBridge.h"
 #include "RetroScreenVideoBridge.h"
 
+#include "RetroScreenRemapWidget.h"
 #include "RetroScreenSetupWidget.h"
 #include "RetroScreenManager.generated.h"
 
@@ -28,6 +29,7 @@ class UInputComponent;
 class UInputMappingContext;
 class URetroScreenPauseMenuWidget;
 class URetroScreenSetupWidget;
+class URetroScreenRemapWidget;
 class AArcadeCabinetActor;
 struct FRetroScreenSetupIssues;
 struct FInputActionValue;
@@ -277,6 +279,33 @@ public:
     UFUNCTION(BlueprintCallable, Category = "RetroScreen|Setup")
     void DismissSetupWidget();
 
+    // -----------------------------------------------------------------------
+    // Button remapping
+    // -----------------------------------------------------------------------
+
+    /** Return the currently active button profile. */
+    UFUNCTION(BlueprintPure, Category = "RetroScreen|Remap")
+    FRetroScreenButtonProfile GetButtonProfile() const { return ActiveButtonProfile; }
+
+    /**
+     * Apply a new button profile.  If bSaveToDisk is true the mapping is
+     * written to [RetroScreenButtonMap] in Saved/RetroScreen.ini.
+     */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Remap")
+    void SetButtonProfile(const FRetroScreenButtonProfile& NewProfile, bool bSaveToDisk = true);
+
+    /** Open the remap widget overlay. */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Remap")
+    void OpenRemapWidget();
+
+    /** Close the remap widget overlay. */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Remap")
+    void CloseRemapWidget();
+
+    /** Widget class to use for the remap overlay. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RetroScreen|Remap")
+    TSubclassOf<URetroScreenRemapWidget> RemapWidgetClass;
+
     /** Widget class to use for the setup guidance overlay. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RetroScreen|Setup")
     TSubclassOf<URetroScreenSetupWidget> SetupWidgetClass;
@@ -449,6 +478,12 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<URetroScreenSetupWidget> SetupWidgetInstance;
 
+    UPROPERTY(Transient)
+    TObjectPtr<URetroScreenRemapWidget> RemapWidgetInstance;
+
+    UPROPERTY(EditAnywhere, Category = "RetroScreen|Remap")
+    FRetroScreenButtonProfile ActiveButtonProfile;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Cabinet")
     TSubclassOf<AArcadeCabinetActor> ArcadeCabinetActorClass;
 
@@ -575,6 +610,8 @@ private:
     void ShowPauseMenuWidget();
     void HidePauseMenuWidget();
     void ShowSetupWidget(const FRetroScreenSetupIssues& Issues);
+    void ShowRemapWidget();
+    void HideRemapWidget();
 
     /**
      * Find or spawn arcade cabinet actor in the current world

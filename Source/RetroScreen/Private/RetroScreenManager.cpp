@@ -1,5 +1,6 @@
 #include "RetroScreenManager.h"
 
+#include "RetroScreenRemapWidget.h"
 #include "RetroScreenSetupWidget.h"
 
 #include <cstdarg>
@@ -903,6 +904,14 @@ bool ARetroScreenManager::SaveRuntimeConfig()
         ConfigFile.SetString(CoreOptionsSectionName, *Pair.Key, UTF8_TO_TCHAR(Pair.Value.c_str()));
     }
 
+    // Button remap profile
+    static const TCHAR* ButtonMapSection = TEXT("RetroScreenButtonMap");
+    ConfigFile.SetString(ButtonMapSection, TEXT("FireButton"),  *LexToString(static_cast<int32>(ActiveButtonProfile.FireButton)));
+    ConfigFile.SetString(ButtonMapSection, TEXT("UpButton"),    *LexToString(static_cast<int32>(ActiveButtonProfile.UpButton)));
+    ConfigFile.SetString(ButtonMapSection, TEXT("DownButton"),  *LexToString(static_cast<int32>(ActiveButtonProfile.DownButton)));
+    ConfigFile.SetString(ButtonMapSection, TEXT("LeftButton"),  *LexToString(static_cast<int32>(ActiveButtonProfile.LeftButton)));
+    ConfigFile.SetString(ButtonMapSection, TEXT("RightButton"), *LexToString(static_cast<int32>(ActiveButtonProfile.RightButton)));
+
     return ConfigFile.Write(ResolvedConfigPath);
 }
 
@@ -1386,6 +1395,25 @@ void ARetroScreenManager::LoadRuntimeConfig()
     }
 
     SetRuntimeCoreOption(TEXT("puae_gfx_linemode"), bRuntimeCrtEnabled ? TEXT("scanlines") : TEXT("none"));
+
+    // Button remap profile
+    static const TCHAR* ButtonMapSection = TEXT("RetroScreenButtonMap");
+    {
+        auto ReadButton = [&](const TCHAR* Key, ERetroJoypadButton& OutId)
+        {
+            FString ValStr;
+            if (ConfigFile.GetString(ButtonMapSection, Key, ValStr))
+            {
+                const int32 Id = FMath::Clamp(FCString::Atoi(*ValStr), 0, 15);
+                OutId = static_cast<ERetroJoypadButton>(Id);
+            }
+        };
+        ReadButton(TEXT("FireButton"),  ActiveButtonProfile.FireButton);
+        ReadButton(TEXT("UpButton"),    ActiveButtonProfile.UpButton);
+        ReadButton(TEXT("DownButton"),  ActiveButtonProfile.DownButton);
+        ReadButton(TEXT("LeftButton"),  ActiveButtonProfile.LeftButton);
+        ReadButton(TEXT("RightButton"), ActiveButtonProfile.RightButton);
+    }
 
     static const TCHAR* CoreOptionsSectionName = TEXT("RetroScreenCoreOptions");
     if (const FConfigSection* CoreOptionsSection = ConfigFile.FindSection(CoreOptionsSectionName))
@@ -2295,7 +2323,7 @@ void ARetroScreenManager::HandleActionPrimaryFireStarted(const FInputActionValue
         return;
     }
 
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_B, true);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.FireButton), true);
 }
 
 void ARetroScreenManager::HandleActionPrimaryFireCompleted(const FInputActionValue& Value)
@@ -2306,7 +2334,7 @@ void ARetroScreenManager::HandleActionPrimaryFireCompleted(const FInputActionVal
     }
 
     const bool bPressed = Value.Get<bool>();
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_B, bPressed);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.FireButton), bPressed);
 }
 
 void ARetroScreenManager::HandleActionMoveUpStarted(const FInputActionValue& Value)
@@ -2316,7 +2344,7 @@ void ARetroScreenManager::HandleActionMoveUpStarted(const FInputActionValue& Val
         return;
     }
 
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_UP, true);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.UpButton), true);
 }
 
 void ARetroScreenManager::HandleActionMoveUpCompleted(const FInputActionValue& Value)
@@ -2327,7 +2355,7 @@ void ARetroScreenManager::HandleActionMoveUpCompleted(const FInputActionValue& V
     }
 
     const bool bPressed = Value.Get<bool>();
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_UP, bPressed);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.UpButton), bPressed);
 }
 
 void ARetroScreenManager::HandleActionMoveDownStarted(const FInputActionValue& Value)
@@ -2337,7 +2365,7 @@ void ARetroScreenManager::HandleActionMoveDownStarted(const FInputActionValue& V
         return;
     }
 
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_DOWN, true);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.DownButton), true);
 }
 
 void ARetroScreenManager::HandleActionMoveDownCompleted(const FInputActionValue& Value)
@@ -2348,7 +2376,7 @@ void ARetroScreenManager::HandleActionMoveDownCompleted(const FInputActionValue&
     }
 
     const bool bPressed = Value.Get<bool>();
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_DOWN, bPressed);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.DownButton), bPressed);
 }
 
 void ARetroScreenManager::HandleActionMoveLeftStarted(const FInputActionValue& Value)
@@ -2358,7 +2386,7 @@ void ARetroScreenManager::HandleActionMoveLeftStarted(const FInputActionValue& V
         return;
     }
 
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_LEFT, true);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.LeftButton), true);
 }
 
 void ARetroScreenManager::HandleActionMoveLeftCompleted(const FInputActionValue& Value)
@@ -2369,7 +2397,7 @@ void ARetroScreenManager::HandleActionMoveLeftCompleted(const FInputActionValue&
     }
 
     const bool bPressed = Value.Get<bool>();
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_LEFT, bPressed);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.LeftButton), bPressed);
 }
 
 void ARetroScreenManager::HandleActionMoveRightStarted(const FInputActionValue& Value)
@@ -2379,7 +2407,7 @@ void ARetroScreenManager::HandleActionMoveRightStarted(const FInputActionValue& 
         return;
     }
 
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_RIGHT, true);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.RightButton), true);
 }
 
 void ARetroScreenManager::HandleActionMoveRightCompleted(const FInputActionValue& Value)
@@ -2390,7 +2418,7 @@ void ARetroScreenManager::HandleActionMoveRightCompleted(const FInputActionValue
     }
 
     const bool bPressed = Value.Get<bool>();
-    SetPrimaryEmulatorJoypadButton(RETRO_DEVICE_ID_JOYPAD_RIGHT, bPressed);
+    SetPrimaryEmulatorJoypadButton(static_cast<int32>(ActiveButtonProfile.RightButton), bPressed);
 }
 
 void ARetroScreenManager::HandleActionMoveAxisX(const FInputActionValue& Value)
@@ -2596,6 +2624,91 @@ void ARetroScreenManager::DismissSetupWidget()
     }
     SetupWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 }
+
+// ---------------------------------------------------------------------------
+// Button profile — remap, save, load, widget
+// ---------------------------------------------------------------------------
+
+void ARetroScreenManager::SetButtonProfile(const FRetroScreenButtonProfile& NewProfile, bool bSaveToDisk)
+{
+    ActiveButtonProfile = NewProfile;
+
+    if (bSaveToDisk)
+    {
+        SaveRuntimeConfig();
+    }
+
+    if (RemapWidgetInstance != nullptr)
+    {
+        RemapWidgetInstance->SetRetroScreenManager(this);
+    }
+}
+
+void ARetroScreenManager::OpenRemapWidget()
+{
+    ShowRemapWidget();
+}
+
+void ARetroScreenManager::CloseRemapWidget()
+{
+    HideRemapWidget();
+}
+
+void ARetroScreenManager::ShowRemapWidget()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    APlayerController* PC = World->GetFirstPlayerController();
+    if (PC == nullptr)
+    {
+        return;
+    }
+
+    TSubclassOf<URetroScreenRemapWidget> WidgetClass = RemapWidgetClass;
+    if (WidgetClass == nullptr)
+    {
+        if (UClass* BPClass = StaticLoadClass(
+            URetroScreenRemapWidget::StaticClass(),
+            nullptr,
+            TEXT("/Game/RetroScreen/UI/WBP_RetroScreenRemap.WBP_RetroScreenRemap_C")))
+        {
+            WidgetClass = BPClass;
+        }
+        else
+        {
+            WidgetClass = URetroScreenRemapWidget::StaticClass();
+        }
+    }
+
+    if (RemapWidgetInstance == nullptr)
+    {
+        RemapWidgetInstance = CreateWidget<URetroScreenRemapWidget>(PC, WidgetClass);
+    }
+
+    if (RemapWidgetInstance != nullptr)
+    {
+        RemapWidgetInstance->SetRetroScreenManager(this);
+        RemapWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+        if (!RemapWidgetInstance->IsInViewport())
+        {
+            RemapWidgetInstance->AddToViewport(1100);
+        }
+    }
+}
+
+void ARetroScreenManager::HideRemapWidget()
+{
+    if (RemapWidgetInstance == nullptr)
+    {
+        return;
+    }
+    RemapWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+}
+
 
 void ARetroScreenManager::FindOrSpawnArcadeCabinet()
 {
