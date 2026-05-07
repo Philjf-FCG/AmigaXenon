@@ -12,6 +12,7 @@
 #include "RetroScreenTextureBridge.h"
 #include "RetroScreenVideoBridge.h"
 
+#include "RetroScreenSetupWidget.h"
 #include "RetroScreenManager.generated.h"
 
 class FRunnableThread;
@@ -26,7 +27,9 @@ class UInputAction;
 class UInputComponent;
 class UInputMappingContext;
 class URetroScreenPauseMenuWidget;
+class URetroScreenSetupWidget;
 class AArcadeCabinetActor;
+struct FRetroScreenSetupIssues;
 struct FInputActionValue;
 struct FTimerHandle;
 
@@ -259,6 +262,25 @@ public:
     UFUNCTION(BlueprintPure, Category = "RetroScreen|Input")
     ERetroScreenInteractionInputMode GetInteractionInputMode() const { return InteractionInputMode; }
 
+    /**
+     * Inspect the current config and return which required files are absent.
+     * Called automatically on BeginPlay; also callable from Blueprint.
+     */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Setup")
+    FRetroScreenSetupIssues CheckSetupStatus() const;
+
+    /** Show the setup guidance widget if any required file is absent. */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Setup")
+    void ShowSetupWidgetIfNeeded();
+
+    /** Dismiss the setup widget programmatically. */
+    UFUNCTION(BlueprintCallable, Category = "RetroScreen|Setup")
+    void DismissSetupWidget();
+
+    /** Widget class to use for the setup guidance overlay. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RetroScreen|Setup")
+    TSubclassOf<URetroScreenSetupWidget> SetupWidgetClass;
+
     UFUNCTION(BlueprintCallable, Category = "RetroScreen|PauseMenu")
     void OpenPauseMenu();
 
@@ -424,6 +446,9 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<URetroScreenPauseMenuWidget> PauseMenuWidgetInstance;
 
+    UPROPERTY(Transient)
+    TObjectPtr<URetroScreenSetupWidget> SetupWidgetInstance;
+
     UPROPERTY(EditAnywhere, Category = "RetroScreen|Cabinet")
     TSubclassOf<AArcadeCabinetActor> ArcadeCabinetActorClass;
 
@@ -549,6 +574,7 @@ private:
     void HandleActionMoveAxisY(const FInputActionValue& Value);
     void ShowPauseMenuWidget();
     void HidePauseMenuWidget();
+    void ShowSetupWidget(const FRetroScreenSetupIssues& Issues);
 
     /**
      * Find or spawn arcade cabinet actor in the current world

@@ -1,5 +1,7 @@
 #include "RetroScreenManager.h"
 
+#include "RetroScreenSetupWidget.h"
+
 #include <cstdarg>
 #include <cstdio>
 
@@ -187,6 +189,7 @@ void ARetroScreenManager::BeginPlay()
     }
 
     LoadRuntimeConfig();
+    ShowSetupWidgetIfNeeded();
     InitializeDefaultInputMappings();
     ApplyInteractionInputMode();
     StartRuntimeMetricsLogging();
@@ -2459,6 +2462,139 @@ void ARetroScreenManager::HidePauseMenuWidget()
     }
 
     PauseMenuWidgetInstance->RemoveFromParent();
+}
+
+// ---------------------------------------------------------------------------
+// First-launch / setup guidance
+// ---------------------------------------------------------------------------
+
+FRetroScreenSetupIssues ARetroScreenManager::CheckSetupStatus() const
+{
+    FRetroScreenSetupIssues Issues;
+
+    // --- Libretro core DLL ---
+    if (LibretroCorePath.TrimStartAndEnd().IsEmpty())
+    {
+        Issues.bCoreMissing = true;
+    }
+    else
+    {
+        FString ResolvedCore = LibretroCorePath;
+        if (FPaths::IsRelative(ResolvedCore))
+        {
+            ResolvedCore = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), ResolvedCore);
+        }
+        Issues.bCoreMissing = !IFileManager::Get().FileExists(*ResolvedCore);
+    }
+
+    // --- Game disk (ADF) ---
+    if (LibretroRomPath.TrimStartAndEnd().IsEmpty())
+    {
+        Issues.bGameDiskMissing = true;
+    }
+    else
+    {
+        FString ResolvedRom = LibretroRomPath;
+        if (FPaths::IsRelative(ResolvedRom))
+        {
+            ResolvedRom = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), ResolvedRom);
+        }
+        Issues.bGameDiskMissing =
+            !IFileManager::Get().FileExists(*ResolvedRom) &&
+            !IFileManager::Get().DirectoryExists(*ResolvedRom);
+    }
+
+    // --- Kickstart ROM ---
+    {
+        const FString KickDir = FPaths::ConvertRelativePathToFull(
+            FPaths::ProjectDir(),
+            TEXT("EmulatorData/Kickstart"));
+
+        bool bFoundKick = false;
+        if (IFileManager::Get().DirectoryExists(*KickDir))
+        {
+            TArray<FString> FoundFiles;
+            IFileManager::Get().FindFiles(FoundFiles, *(KickDir / TEXT("*.rom")), true, false);
+            bFoundKick = (FoundFiles.Num() > 0);
+        }
+        Issues.bKickstartMissing = !bFoundKick;
+    }
+
+    return Issues;
+}
+
+void ARetroScreenManager::ShowSetupWidgetIfNeeded()
+{
+    const FRetroScreenSetupIssues Issues = CheckSetupStatus();
+    if (Issues.IsComplete())
+    {
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("RetroScreen: Setup incomplete — core=%s disk=%s kickstart=%s"),
+        Issues.bCoreMissing     ? TEXT("MISSING") : TEXT("ok"),
+        Issues.bGameDiskMissing ? TEXT("MISSING") : TEXT("ok"),
+        Issues.bKickstartMissing? TEXT("MISSING") : TEXT("ok"));
+
+    ShowSetupWidget(Issues);
+}
+
+void ARetroScreenManager::ShowSetupWidget(const FRetroScreenSetupIssues& Issues)
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    if (PlayerController == nullptr)
+    {
+        return;
+    }
+
+    TSubclassOf<URetroScreenSetupWidget> WidgetClass = SetupWidgetClass;
+    if (WidgetClass == nullptr)
+    {
+        // Try to find a Blueprint subclass at the conventional path
+        if (UClass* BPClass = StaticLoadClass(
+            URetroScreenSetupWidget::StaticClass(),
+            nullptr,
+            TEXT("/Game/RetroScreen/UI/WBP_RetroScreenSetup.WBP_RetroScreenSetup_C")))
+        {
+            WidgetClass = BPClass;
+        }
+        else
+        {
+            WidgetClass = URetroScreenSetupWidget::StaticClass();
+        }
+    }
+
+    if (SetupWidgetInstance == nullptr)
+    {
+        SetupWidgetInstance = CreateWidget<URetroScreenSetupWidget>(PlayerController, WidgetClass);
+    }
+
+    if (SetupWidgetInstance != nullptr)
+    {
+        SetupWidgetInstance->SetRetroScreenManager(this);
+        SetupWidgetInstance->SetSetupIssues(Issues);
+        SetupWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+        if (!SetupWidgetInstance->IsInViewport())
+        {
+            SetupWidgetInstance->AddToViewport(900);
+        }
+    }
+}
+
+void ARetroScreenManager::DismissSetupWidget()
+{
+    if (SetupWidgetInstance == nullptr)
+    {
+        return;
+    }
+    SetupWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 }
 
 void ARetroScreenManager::FindOrSpawnArcadeCabinet()
