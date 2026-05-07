@@ -358,9 +358,13 @@ void AArcadeCabinetActor::RefreshScreenTexture()
 	UTexture2D* EmulatorTexture = RetroScreenManager->GetEmulatorTexture();
 	if (EmulatorTexture)
 	{
-		// Bind the emulator texture to the screen material
+		// Bind the emulator texture to the screen material (updates both ScreenMesh and CabinetMesh slot 1)
 		ScreenDynamicMaterial->SetTextureParameterValue(ScreenTextureParameterName, EmulatorTexture);
 		UE_LOG(LogTemp, Verbose, TEXT("[RetroScreen] Screen texture updated"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("[RetroScreen] RefreshScreenTexture: emulator texture is null"));
 	}
 }
 
@@ -388,7 +392,17 @@ void AArcadeCabinetActor::ResolveMaterialInstance()
 		ScreenDynamicMaterial = UMaterialInstanceDynamic::Create(SourceMaterial, this);
 		if (ScreenDynamicMaterial)
 		{
+			// Apply to the plane mesh overlay (if present)
 			ScreenMesh->SetMaterial(0, ScreenDynamicMaterial);
+
+			// Apply directly to cabinet mesh slot 1 ("Material" = built-in screen surface on the 3D model).
+			// This is more reliable than the plane overlay since UVs and position are baked into the mesh.
+			if (CabinetMesh && CabinetMesh->GetNumMaterials() > 1)
+			{
+				CabinetMesh->SetMaterial(1, ScreenDynamicMaterial);
+				UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Applied screen material to cabinet mesh slot 1"));
+			}
+
 			UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Created dynamic material instance for screen"));
 			ApplyCrtMaterialParameters();
 		}

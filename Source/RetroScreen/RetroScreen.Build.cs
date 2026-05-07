@@ -26,12 +26,14 @@ public class RetroScreen : ModuleRules
         // uses libretro types directly, so consumers need UnrealLibretro's include paths.
         PublicDependencyModuleNames.Add("UnrealLibretro");
 
+        // UMG must be public: RetroScreenRemapWidget.h (a public header) includes Blueprint/UserWidget.h
+        PublicDependencyModuleNames.Add("UMG");
+
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
                 "Slate",
                 "SlateCore",
-                "UMG",
                 "AudioMixer",
             }
         );
