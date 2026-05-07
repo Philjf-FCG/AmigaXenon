@@ -259,6 +259,7 @@ void ARetroScreenManager::Tick(float DeltaSeconds)
 
 void ARetroScreenManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    ShutdownEmulator();
     HidePauseMenuWidget();
     StopRuntimeMetricsLogging();
     StopRuntimeMetricsCsvExport();
@@ -2765,73 +2766,76 @@ void ARetroScreenManager::FindOrSpawnArcadeCabinet()
         return;
     }
 
-    // Try to find existing cabinet actor
+    // Try to find an existing cabinet actor in the level.
     for (TActorIterator<AArcadeCabinetActor> It(World); It; ++It)
     {
-        AArcadeCabinetActor* Cabinet = *It;
-        if (Cabinet != nullptr)
+        if (AArcadeCabinetActor* Cabinet = *It)
         {
             ArcadeCabinetActorInstance = Cabinet;
             UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Using existing arcade cabinet: %s"), *Cabinet->GetName());
+            break;
+        }
+    }
+
+    // Spawn a new cabinet if none was found.
+    if (ArcadeCabinetActorInstance == nullptr)
+    {
+        if (!ArcadeCabinetActorClass)
+        {
+            ArcadeCabinetActorClass = AArcadeCabinetActor::StaticClass();
+        }
+
+        FVector SpawnLocation = FVector(0.0f, 0.0f, 100.0f);
+        FRotator SpawnRotation = FRotator::ZeroRotator;
+
+        ArcadeCabinetActorInstance = World->SpawnActor<AArcadeCabinetActor>(
+            ArcadeCabinetActorClass,
+            SpawnLocation,
+            SpawnRotation
+        );
+
+        if (ArcadeCabinetActorInstance != nullptr)
+        {
+            UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Spawned arcade cabinet at %s"), *SpawnLocation.ToString());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Failed to spawn arcade cabinet actor"));
             return;
         }
     }
 
-    // Spawn new cabinet actor if none exists
-    if (!ArcadeCabinetActorClass)
-    {
-        ArcadeCabinetActorClass = AArcadeCabinetActor::StaticClass();
-    }
-    
+    // Camera setup — always run whether the cabinet was found or freshly spawned.
     APlayerController* PlayerController = World->GetFirstPlayerController();
     if (PlayerController == nullptr)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Cannot spawn arcade cabinet: no player controller"));
+        UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] No player controller — cabinet camera not set up"));
         return;
     }
 
-    // Spawn at default location
-    FVector SpawnLocation = FVector(0.0f, 0.0f, 100.0f);
-    FRotator SpawnRotation = FRotator::ZeroRotator;
-
-    ArcadeCabinetActorInstance = World->SpawnActor<AArcadeCabinetActor>(
-        ArcadeCabinetActorClass,
-        SpawnLocation,
-        SpawnRotation
-    );
-
-    if (ArcadeCabinetActorInstance != nullptr)
+    if (APawn* Pawn = PlayerController->GetPawn())
     {
-        // Configure player controller to view the cabinet
-        if (APawn* Pawn = PlayerController->GetPawn())
-        {
-            PlayerController->UnPossess();
-        }
-
-        PlayerController->bAutoManageActiveCameraTarget = false;
-        PlayerController->SetViewTarget(ArcadeCabinetActorInstance);
-
-        // Hide all other actors to show only the cabinet
-        PlayerController->HiddenActors.Reset();
-        for (TActorIterator<AActor> It(World); It; ++It)
-        {
-            AActor* Actor = *It;
-            if (Actor != nullptr && Actor != ArcadeCabinetActorInstance && Actor != this)
-            {
-                PlayerController->HiddenActors.AddUnique(Actor);
-            }
-        }
-
-        FInputModeGameOnly InputMode;
-        PlayerController->SetInputMode(InputMode);
-        PlayerController->bShowMouseCursor = false;
-
-        UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Spawned arcade cabinet at %s"), *SpawnLocation.ToString());
+        PlayerController->UnPossess();
     }
-    else
+
+    PlayerController->bAutoManageActiveCameraTarget = false;
+    PlayerController->SetViewTarget(ArcadeCabinetActorInstance);
+
+    // Hide everything except the cabinet and this manager so the emulator
+    // screen fills the view without the default landscape/sky showing through.
+    PlayerController->HiddenActors.Reset();
+    for (TActorIterator<AActor> It(World); It; ++It)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] Failed to spawn arcade cabinet actor"));
+        AActor* Actor = *It;
+        if (Actor != nullptr && Actor != ArcadeCabinetActorInstance && Actor != this)
+        {
+            PlayerController->HiddenActors.AddUnique(Actor);
+        }
     }
+
+    FInputModeGameOnly InputMode;
+    PlayerController->SetInputMode(InputMode);
+    PlayerController->bShowMouseCursor = false;
 }
 
 void ARetroScreenManager::SetRuntimeCoreOption(const FString& Key, const FString& Value)
