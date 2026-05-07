@@ -25,6 +25,13 @@ FRetroScreenEmulatorWorkerStats FRetroScreenEmulatorWorker::GetStats() const
 
 uint32 FRetroScreenEmulatorWorker::Run()
 {
+    // Cache the callback once — SetFrameStepCallback must not be called after Run() starts.
+    TFunction<void()> CachedCallback;
+    {
+        FScopeLock CallbackLock(&CallbackMutex);
+        CachedCallback = FrameStepCallback;
+    }
+
     double NextFrameSeconds = FPlatformTime::Seconds();
 
     while (!bStopRequested)
@@ -36,16 +43,10 @@ uint32 FRetroScreenEmulatorWorker::Run()
             continue;
         }
 
-        TFunction<void()> CallbackCopy;
-        {
-            FScopeLock CallbackLock(&CallbackMutex);
-            CallbackCopy = FrameStepCallback;
-        }
-
         const double FrameStartSeconds = FPlatformTime::Seconds();
-        if (CallbackCopy)
+        if (CachedCallback)
         {
-            CallbackCopy();
+            CachedCallback();
         }
 
         const float FrameDurationMs = static_cast<float>((FPlatformTime::Seconds() - FrameStartSeconds) * 1000.0);

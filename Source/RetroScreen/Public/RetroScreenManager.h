@@ -579,6 +579,7 @@ private:
     float CachedJoypadAxisX;
     float CachedJoypadAxisY;
     FLinearColor CachedAverageScreenColor;
+    TArray<float> AudioDrainScratch;
 
     void HandleLibretroInputPoll();
     int16 HandleLibretroInputState(uint32 Port, uint32 Device, uint32 Index, uint32 Id) const;

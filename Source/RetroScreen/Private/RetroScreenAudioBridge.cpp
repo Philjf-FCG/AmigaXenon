@@ -66,11 +66,14 @@ int32 FRetroScreenAudioBridge::PushInterleavedSamples(const float* InSamples, in
         OverrunCount += static_cast<uint64>(NumSamples - SamplesToWrite);
     }
 
-    for (int32 Index = 0; Index < SamplesToWrite; ++Index)
+    // Two-chunk Memcpy: write up to the end of the ring buffer, then wrap to the start.
+    const int32 FirstChunk = FMath::Min(SamplesToWrite, CapacitySamples - WriteCursor);
+    FMemory::Memcpy(Buffer.GetData() + WriteCursor, InSamples, sizeof(float) * FirstChunk);
+    if (SamplesToWrite > FirstChunk)
     {
-        Buffer[WriteCursor] = InSamples[Index];
-        WriteCursor = (WriteCursor + 1) % CapacitySamples;
+        FMemory::Memcpy(Buffer.GetData(), InSamples + FirstChunk, sizeof(float) * (SamplesToWrite - FirstChunk));
     }
+    WriteCursor = (WriteCursor + SamplesToWrite) % CapacitySamples;
 
     AvailableSamples += SamplesToWrite;
     TotalSamplesPushed += static_cast<uint64>(SamplesToWrite);
@@ -95,11 +98,14 @@ int32 FRetroScreenAudioBridge::PopInterleavedSamples(float* OutSamples, int32 Nu
 
     const int32 SamplesToRead = FMath::Min(NumSamples, AvailableSamples);
 
-    for (int32 Index = 0; Index < SamplesToRead; ++Index)
+    // Two-chunk Memcpy: read up to the end of the ring buffer, then wrap to the start.
+    const int32 FirstChunk = FMath::Min(SamplesToRead, CapacitySamples - ReadCursor);
+    FMemory::Memcpy(OutSamples, Buffer.GetData() + ReadCursor, sizeof(float) * FirstChunk);
+    if (SamplesToRead > FirstChunk)
     {
-        OutSamples[Index] = Buffer[ReadCursor];
-        ReadCursor = (ReadCursor + 1) % CapacitySamples;
+        FMemory::Memcpy(OutSamples + FirstChunk, Buffer.GetData(), sizeof(float) * (SamplesToRead - FirstChunk));
     }
+    ReadCursor = (ReadCursor + SamplesToRead) % CapacitySamples;
 
     AvailableSamples -= SamplesToRead;
     TotalSamplesPopped += static_cast<uint64>(SamplesToRead);

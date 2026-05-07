@@ -193,6 +193,9 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UMaterialInstanceDynamic> ScreenMaterialInstance;
 
+    UPROPERTY(Transient)
+    TObjectPtr<UTexture2D> LastBoundScreenTexture;
+
     bool bCrtParametersDirty;
     FLinearColor CurrentLinkedGlowColor;
     float CurrentLinkedGlowIntensity;

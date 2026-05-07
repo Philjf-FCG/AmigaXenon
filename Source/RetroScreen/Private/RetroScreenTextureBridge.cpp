@@ -57,15 +57,28 @@ bool FRetroScreenTextureBridge::UploadFrame(UTexture2D* Texture, const FRetroScr
         return false;
     }
 
-    FMemory::Memzero(DestPixels, static_cast<SIZE_T>(DestSize));
-
     const uint8* SrcPixels = Frame.Pixels.GetData();
-    const int32 CopyBytesPerRow = FMath::Min(Frame.Pitch, DestPitch);
-    for (int32 Row = 0; Row < Frame.Height; ++Row)
+
+    // Fast path: when source and dest strides match the entire frame is contiguous.
+    if (Frame.Pitch == DestPitch)
     {
-        const int64 SrcOffset = static_cast<int64>(Row) * static_cast<int64>(Frame.Pitch);
-        const int64 DestOffset = static_cast<int64>(Row) * static_cast<int64>(DestPitch);
-        FMemory::Memcpy(DestPixels + DestOffset, SrcPixels + SrcOffset, static_cast<SIZE_T>(CopyBytesPerRow));
+        FMemory::Memcpy(DestPixels, SrcPixels, static_cast<SIZE_T>(DestSize));
+    }
+    else
+    {
+        // Source has padding rows; copy each row individually and zero any trailing columns.
+        const int32 CopyBytesPerRow = FMath::Min(Frame.Pitch, DestPitch);
+        const int32 PadBytesPerRow = DestPitch - CopyBytesPerRow;
+        for (int32 Row = 0; Row < Frame.Height; ++Row)
+        {
+            uint8* Dest = DestPixels + static_cast<int64>(Row) * DestPitch;
+            const uint8* Src = SrcPixels + static_cast<int64>(Row) * Frame.Pitch;
+            FMemory::Memcpy(Dest, Src, static_cast<SIZE_T>(CopyBytesPerRow));
+            if (PadBytesPerRow > 0)
+            {
+                FMemory::Memzero(Dest + CopyBytesPerRow, static_cast<SIZE_T>(PadBytesPerRow));
+            }
+        }
     }
 
     Mip.BulkData.Unlock();

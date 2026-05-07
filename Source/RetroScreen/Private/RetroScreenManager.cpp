@@ -196,6 +196,9 @@ void ARetroScreenManager::BeginPlay()
     StartRuntimeMetricsLogging();
     StartRuntimeMetricsCsvExport();
     StartRuntimeQualityGateLogging();
+
+    // Pre-allocate audio drain scratch so Tick never triggers a heap allocation.
+    AudioDrainScratch.Reserve(FMath::Max(StandaloneAudioDrainSamplesPerTick * 2, 8192));
 }
 
 void ARetroScreenManager::Tick(float DeltaSeconds)
@@ -212,9 +215,9 @@ void ARetroScreenManager::Tick(float DeltaSeconds)
 
         if (SamplesToDrain > 0)
         {
-            TArray<float> DrainScratch;
-            DrainScratch.SetNumUninitialized(SamplesToDrain);
-            AudioBridge->PopInterleavedSamples(DrainScratch.GetData(), SamplesToDrain);
+            // AudioDrainScratch is pre-allocated in BeginPlay; SetNum only grows, never re-allocates downward.
+            AudioDrainScratch.SetNumUninitialized(SamplesToDrain, EAllowShrinking::No);
+            AudioBridge->PopInterleavedSamples(AudioDrainScratch.GetData(), SamplesToDrain);
             UpdateAudioMetrics();
         }
     }

@@ -157,12 +157,13 @@ void ARetroScreenCabinetActor::RefreshCabinetScreenTexture()
     }
 
     UTexture2D* EmulatorTexture = RetroScreenManager->GetEmulatorTexture();
-    if (EmulatorTexture == nullptr)
+    if (EmulatorTexture == nullptr || EmulatorTexture == LastBoundScreenTexture)
     {
         return;
     }
 
     ScreenMaterialInstance->SetTextureParameterValue(ScreenTextureParameterName, EmulatorTexture);
+    LastBoundScreenTexture = EmulatorTexture;
 }
 
 void ARetroScreenCabinetActor::SetCrtParameters(const FRetroScreenCrtParameters& NewParameters)
@@ -306,6 +307,7 @@ void ARetroScreenCabinetActor::ResolveMaterialInstancesIfNeeded()
 
         ScreenMaterialInstance = UMaterialInstanceDynamic::Create(SourceScreenMaterial, this);
         CabinetMesh->SetMaterial(SingleMeshScreenMaterialSlot, ScreenMaterialInstance);
+        LastBoundScreenTexture = nullptr;
         bCrtParametersDirty = true;
         ApplyCrtMaterialParameters();
         return;
@@ -329,6 +331,7 @@ void ARetroScreenCabinetActor::ResolveMaterialInstancesIfNeeded()
 
     ScreenMaterialInstance = UMaterialInstanceDynamic::Create(SourceScreenMaterial, this);
     ScreenMesh->SetMaterial(ScreenMaterialSlot, ScreenMaterialInstance);
+    LastBoundScreenTexture = nullptr;
     bCrtParametersDirty = true;
     ApplyCrtMaterialParameters();
 }

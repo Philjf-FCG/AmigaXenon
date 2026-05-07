@@ -46,6 +46,9 @@ bool FRetroScreenVideoBridge::ConsumeLatestFrame(FRetroScreenVideoFrame& OutFram
         return false;
     }
 
+    // Clear the flag before copying so the game thread never re-uploads the same frame.
+    // PublishFrame always writes the opposite slot so the pixel data remains valid here.
+    bHasFrame = false;
     OutFrame = Buffers[LatestBufferIndex];
     return OutFrame.IsValid();
 }
