@@ -22,6 +22,10 @@ public class RetroScreen : ModuleRules
             }
         );
 
+        // UnrealLibretro is public because RetroScreenLibretroCore.h (a public header)
+        // uses libretro types directly, so consumers need UnrealLibretro's include paths.
+        PublicDependencyModuleNames.Add("UnrealLibretro");
+
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
@@ -29,7 +33,6 @@ public class RetroScreen : ModuleRules
                 "SlateCore",
                 "UMG",
                 "AudioMixer",
-                "UnrealLibretro"
             }
         );
     }
