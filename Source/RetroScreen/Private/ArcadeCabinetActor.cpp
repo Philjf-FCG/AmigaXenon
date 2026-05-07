@@ -203,17 +203,16 @@ void AArcadeCabinetActor::UpdateCameraMode()
 {
 	if (ScreenMode == ECabinetScreenMode::Fullscreen)
 	{
-		// Fullscreen: camera positioned far back viewing the cabinet straight on
-		// Move back further and raise up higher for better 3D view
+		// Camera at +X of cabinet looking back toward -X where the screen faces.
 		ViewCamera->SetRelativeLocation(FVector(CameraDistance * 1.2f, CameraHorizontalOffset, CameraHeightOffset * 1.5f));
-		ViewCamera->SetRelativeRotation(FRotator(-15.0f, 0.0f, 0.0f));
+		ViewCamera->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f));
 		ViewCamera->FieldOfView = CameraFieldOfView;
 	}
 	else
 	{
-		// Embedded: camera positioned closer, slight angle for screen view
+		// Embedded: camera at +X of cabinet looking back toward -X at the screen.
 		ViewCamera->SetRelativeLocation(FVector(CameraDistance * 0.5f, CameraHorizontalOffset * 0.3f, CameraHeightOffset * 1.0f));
-		ViewCamera->SetRelativeRotation(FRotator(-20.0f, 0.0f, 0.0f));
+		ViewCamera->SetRelativeRotation(FRotator(-20.0f, 180.0f, 0.0f));
 		ViewCamera->FieldOfView = CameraFieldOfView;
 	}
 	
