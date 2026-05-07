@@ -221,28 +221,16 @@ void AArcadeCabinetActor::ConfigureForViewport(float AspectRatio)
 
 void AArcadeCabinetActor::UpdateScreenTransform(float AspectRatio)
 {
-	if (ScreenMode == ECabinetScreenMode::Fullscreen)
+	if (ScreenMesh == nullptr)
 	{
-		// In fullscreen mode, screen mesh is hidden and camera shows full viewport
-		if (ScreenMesh)
-		{
-			ScreenMesh->SetHiddenInGame(true);
-			ScreenMesh->SetVisibility(false, true);
-		}
 		return;
 	}
 
-	// Embedded mode: position screen within cabinet
-	if (ScreenMesh)
-	{
-		// Screen mesh positioned relative to cabinet
-		// Coordinates mapped to cabinet screen position
-		ScreenMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
-		ScreenMesh->SetRelativeRotation(FRotator::ZeroRotator);
-		ScreenMesh->SetRelativeScale3D(FVector(ScreenHorizontalScale, ScreenVerticalScale, 1.0f));
-		ScreenMesh->SetHiddenInGame(false);
-		ScreenMesh->SetVisibility(true, true);
-	}
+	// Transform (position/rotation/scale) is owned by SetupScreenMeshPlane().
+	// This function only controls visibility based on mode.
+	const bool bVisible = (ScreenMode != ECabinetScreenMode::Fullscreen);
+	ScreenMesh->SetHiddenInGame(!bVisible);
+	ScreenMesh->SetVisibility(bVisible, true);
 }
 
 void AArcadeCabinetActor::UpdateCameraMode()
