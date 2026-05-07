@@ -83,6 +83,11 @@ void AArcadeCabinetActor::BeginPlay()
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Arcade Cabinet initialized at %s"), *GetActorLocation().ToString());
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet mesh visibility: %d, hidden in game: %d"), 
+		CabinetMesh ? CabinetMesh->IsVisible() : -1, CabinetMesh ? CabinetMesh->bHiddenInGame : -1);
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet mesh location: %s"), CabinetMesh ? *CabinetMesh->GetComponentLocation().ToString() : TEXT("nullptr"));
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Cabinet mesh scale: %s"), CabinetMesh ? *CabinetMesh->GetComponentScale().ToString() : TEXT("nullptr"));
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Camera location: %s"), ViewCamera ? *ViewCamera->GetComponentLocation().ToString() : TEXT("nullptr"));
 }
 
 void AArcadeCabinetActor::Tick(float DeltaSeconds)
@@ -198,6 +203,9 @@ void AArcadeCabinetActor::UpdateCameraMode()
 		ViewCamera->SetRelativeRotation(FRotator(-10.0f, 5.0f, 0.0f));
 		ViewCamera->FieldOfView = CameraFieldOfView;
 	}
+	
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] UpdateCameraMode - camera relative loc: %s, world loc: %s"), 
+		*ViewCamera->GetRelativeLocation().ToString(), *ViewCamera->GetComponentLocation().ToString());
 }
 
 void AArcadeCabinetActor::GetViewportDimensions(int32& OutWidth, int32& OutHeight) const
