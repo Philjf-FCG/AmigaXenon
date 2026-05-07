@@ -131,7 +131,6 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-    UENUM()
     enum class ERunnerState : uint8
     {
         Idle,
