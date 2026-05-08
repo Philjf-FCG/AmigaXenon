@@ -78,29 +78,49 @@ void AArcadeRoomActor::BeginPlay()
     BuildRoom();
     StartAmbientAudio();
 
-    // Disable any sky light and atmospheric actors that exist in the default level.
-    // This is an indoor arcade room — sky reflections leaking onto the cabinet screen
-    // make the emulator output invisible.
+    // Disable any sky/atmospheric/cloud actors from the default level.
+    // This is an indoor arcade room — sky irradiance and reflections bleed onto the emulator screen.
+    int32 NumChecked = 0;
+    int32 NumDisabled = 0;
     for (TActorIterator<AActor> It(GetWorld()); It; ++It)
     {
         AActor* Act = *It;
         if (Act == this) { continue; }
+        ++NumChecked;
         const FString CN = Act->GetClass()->GetName();
-        if (CN.Contains(TEXT("SkyLight")) || CN.Contains(TEXT("SkyAtmosphere"))
-            || CN.Contains(TEXT("BP_Sky")) || CN.Contains(TEXT("HeightFog")))
+
+        // Log all light/sky/cloud class names to diagnose the scene
+        if (CN.Contains(TEXT("Light")) || CN.Contains(TEXT("Sky"))
+            || CN.Contains(TEXT("Cloud")) || CN.Contains(TEXT("Fog"))
+            || CN.Contains(TEXT("Atmosphere")))
+        {
+            UE_LOG(LogTemp, Display, TEXT("[ArcadeRoom] Scene actor: %s (class=%s)"),
+                *Act->GetName(), *CN);
+        }
+
+        const bool bSkyRelated = CN.Contains(TEXT("SkyLight"))
+            || CN.Contains(TEXT("SkyAtmosphere"))
+            || CN.Contains(TEXT("VolumetricCloud"))
+            || CN.Contains(TEXT("BP_Sky"))
+            || CN.Contains(TEXT("HeightFog"))
+            || CN.Contains(TEXT("DirectionalLight"));
+
+        if (bSkyRelated)
         {
             Act->SetActorHiddenInGame(true);
-            // Disable the light component so it stops contributing sky irradiance
             TArray<ULightComponent*> LCs;
             Act->GetComponents<ULightComponent>(LCs);
             for (ULightComponent* LC : LCs)
             {
                 LC->SetVisibility(false);
             }
-            UE_LOG(LogTemp, Display, TEXT("[ArcadeRoom] Disabled sky actor: %s (%s)"),
+            ++NumDisabled;
+            UE_LOG(LogTemp, Display, TEXT("[ArcadeRoom] Disabled sky actor: %s (class=%s)"),
                 *Act->GetName(), *CN);
         }
     }
+    UE_LOG(LogTemp, Display, TEXT("[ArcadeRoom] Sky sweep: checked %d actors, disabled %d"),
+        NumChecked, NumDisabled);
 }
 
 void AArcadeRoomActor::StartAmbientAudio()

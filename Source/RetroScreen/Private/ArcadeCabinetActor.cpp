@@ -192,9 +192,11 @@ void AArcadeCabinetActor::SetupScreenMeshPlane(const FBoxSphereBounds& CabinetBo
 
 	ScreenMesh->SetStaticMesh(PlaneMesh);
 
-	// Position the plane on the +Y face of the cabinet at the screen area.
-	// CabinetBounds is in mesh-local space (same as CabinetMesh component local space).
-	const float FaceY     = CabinetBounds.BoxExtent.Y - 5.0f;  // 5 units inside front face
+	// Position the plane just outside (in front of) the cabinet's +Y face.
+	// Placing it inside the bounding box risks z-fighting or the cabinet surface occluding it.
+	// Being outside means any transparent/additive pixels in M_GlowingScreen show the
+	// opaque cabinet body behind them rather than sky or room background.
+	const float FaceY     = CabinetBounds.BoxExtent.Y + 2.0f;  // 2 units in front of front face
 	const float ScreenCenterZ = CabinetBounds.Origin.Z + CabinetBounds.BoxExtent.Z * 0.38f;
 
 	// Scale the unit plane (100×100) to cover ~65% of cabinet width and ~45% of cabinet height.
