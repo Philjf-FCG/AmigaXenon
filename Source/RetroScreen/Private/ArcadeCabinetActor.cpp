@@ -18,6 +18,7 @@ AArcadeCabinetActor::AArcadeCabinetActor()
 	, CameraFieldOfView(75.0f)
 	, bCameraFacesPositiveX(true)
 	, ScreenMode(ECabinetScreenMode::Embedded)
+	, bScreenOnlyMode(true)
 	, bCrtEffectsEnabled(true)
 	, bEnableDynamicScreenScaling(true)
 	, ScreenHorizontalScale(0.95f)
@@ -53,9 +54,10 @@ AArcadeCabinetActor::AArcadeCabinetActor()
 	ViewCamera->SetupAttachment(RootComponent);
 	ViewCamera->FieldOfView = CameraFieldOfView;
 
-	// Create screen mesh component (display surface)
+	// Create screen mesh component (display surface) — attached to root, not the cabinet,
+	// so its visibility is independent of CabinetMesh when bScreenOnlyMode is on.
 	ScreenMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ScreenMesh"));
-	ScreenMesh->SetupAttachment(CabinetMesh);
+	ScreenMesh->SetupAttachment(RootComponent);
 	ScreenMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ScreenMesh->SetGenerateOverlapEvents(false);
 	ScreenMesh->SetCastShadow(false);
@@ -68,8 +70,17 @@ void AArcadeCabinetActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Load cabinet mesh asset
-	LoadCabinetMesh();
+	if (bScreenOnlyMode)
+	{
+		// No cabinet — just a flat emulator screen plane
+		CabinetMesh->SetHiddenInGame(true);
+		CabinetMesh->SetVisibility(false, false);
+		SetupDirectScreen();
+	}
+	else
+	{
+		LoadCabinetMesh();
+	}
 
 	// Update camera configuration for initial viewport.
 	// GetViewportSize returns 0 during BeginPlay in PIE before the first frame is rendered,
@@ -215,6 +226,34 @@ void AArcadeCabinetActor::SetupScreenMeshPlane(const FBoxSphereBounds& CabinetBo
 		FaceY, ScreenCenterZ, ScaleX, ScaleY);
 }
 
+void AArcadeCabinetActor::SetupDirectScreen()
+{
+	if (ScreenMesh == nullptr) { return; }
+
+	UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	if (PlaneMesh == nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RetroScreen] SetupDirectScreen: failed to load Plane mesh"));
+		return;
+	}
+
+	ScreenMesh->SetStaticMesh(PlaneMesh);
+
+	// Place the plane at actor-local origin, facing +Y (camera at +Y looking -Y).
+	// ScaleX = width (400 units), ScaleY = height (320 units, ~5:4 for Amiga PAL).
+	// Both are tweakable via ScreenHorizontalScale / ScreenVerticalScale in Details.
+	const float W = 4.0f * ScreenHorizontalScale;
+	const float H = 3.2f * ScreenVerticalScale;
+	ScreenMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+	ScreenMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, -90.0f));  // normal faces +Y
+	ScreenMesh->SetRelativeScale3D(FVector(W, H, 1.0f));
+	ScreenMesh->SetHiddenInGame(false);
+	ScreenMesh->SetVisibility(true, true);
+
+	UE_LOG(LogTemp, Display, TEXT("[RetroScreen] Direct screen: %.0fx%.0f units (scale %.2f,%.2f)"),
+		W * 100.0f, H * 100.0f, W, H);
+}
+
 void AArcadeCabinetActor::ConfigureForViewport(float AspectRatio)
 {
 	UpdateScreenTransform(AspectRatio);
@@ -237,6 +276,17 @@ void AArcadeCabinetActor::UpdateScreenTransform(float AspectRatio)
 
 void AArcadeCabinetActor::UpdateCameraMode()
 {
+	if (bScreenOnlyMode)
+	{
+		// Screen-only: camera sits 350 units in front of the plane on the +Y axis, looking -Y
+		ViewCamera->SetRelativeLocation(FVector(CameraHorizontalOffset, 350.0f, 0.0f));
+		ViewCamera->SetRelativeRotation(FRotator(0.0f, 270.0f, 0.0f));
+		ViewCamera->FieldOfView = CameraFieldOfView;
+		UE_LOG(LogTemp, Display, TEXT("[RetroScreen] ScreenOnly camera: %s"),
+			*ViewCamera->GetComponentLocation().ToString());
+		return;
+	}
+
 	// Compute standoff and height from the actual mesh bounds so any cabinet size works.
 	// Default fallback: screen at ~150 units height, standoff ~150 units.
 	float StandoffDist = CameraDistance * 2.0f;

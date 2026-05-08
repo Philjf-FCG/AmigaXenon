@@ -127,6 +127,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Cabinet|CRT")
 	FRetroScreenCrtParameters CrtParameters;
 
+	/** When true, hide the 3D cabinet and show only the flat emulator screen plane */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arcade Cabinet|Display")
+	bool bScreenOnlyMode;
+
 	/** Enable dynamic screen sizing based on viewport aspect ratio */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Arcade Cabinet|Display")
 	bool bEnableDynamicScreenScaling;
@@ -178,6 +182,9 @@ private:
 
 	/** Assign a plane mesh to ScreenMesh and position it at the cabinet screen opening */
 	void SetupScreenMeshPlane(const FBoxSphereBounds& CabinetBounds);
+
+	/** Screen-only mode: place a plain flat panel at a fixed position, no cabinet */
+	void SetupDirectScreen();
 
 	/** Apply current CRT parameters to the dynamic material instance */
 	void ApplyCrtMaterialParameters();
